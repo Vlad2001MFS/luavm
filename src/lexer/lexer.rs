@@ -37,7 +37,7 @@ impl Lexer {
     fn process(&mut self) {
         while !self.stream.is_eof() {
             self.stream.skip();
-
+            
             if self.stream.look_for("--[[", true) {
                 let mut depth = 1;
                 while depth > 0 {
@@ -47,6 +47,11 @@ impl Lexer {
                     else if self.stream.look_for("--[[", true) {
                         depth += 1;
                     }
+                    self.stream.next(false);
+                }
+            }
+            else if self.stream.look_for("--", true) {
+                while self.stream.last_char() != '\n' {
                     self.stream.next(false);
                 }
             }
