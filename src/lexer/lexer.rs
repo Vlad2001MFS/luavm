@@ -58,7 +58,11 @@ impl Lexer {
             else if self.stream.last_char() == '\'' || self.stream.last_char() == '"' {
                 let mut short_literal = String::new();
                 while self.stream.next(false) {
-                    if self.stream.last_char() == '\'' || self.stream.last_char() == '"' {
+                    if self.stream.last_char() == '\\' {
+                        self.stream.next(false);
+                        short_literal.push(self.stream.last_char());
+                    }
+                    else if self.stream.last_char() == '\'' || self.stream.last_char() == '"' {
                         self.stream.next(false);
                         break;
                     }
