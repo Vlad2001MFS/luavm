@@ -12,11 +12,12 @@ io.write
 
 fn main() {
     let tokens = Lexer::parse(TEST_SOURCE1, "test_source");
-    println!("token = [");
-    for token in tokens.iter() {
-        println!("  {:?}", token);
+    {
+        std::io::stdout().lock();
+        println!("token = [");
+        for token in tokens.iter() {
+            println!("  {:?}", token);
+        }
+        println!("]");
     }
-    println!("]");
-
-    std::io::stdin().read_line(&mut String::new()).unwrap();
 }

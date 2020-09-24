@@ -80,21 +80,8 @@ impl Lexer {
                 }
                 self.tokens.push(Token::Identifier(name));
             }
-            else if OTHER_TOKENS.iter().any(|a| a.starts_with(self.stream.last_char())) {
-                let mut lexem = self.stream.last_char().to_string();
-                while self.stream.next(false) {
-                    let new_lexem = lexem.clone() + &self.stream.last_char().to_string();
-                    if OTHER_TOKENS.iter().any(|a| *a == &new_lexem) {
-                        break;
-                    }
-                    else if OTHER_TOKENS.iter().any(|a| a.starts_with(&new_lexem)) {
-                        lexem = new_lexem;
-                    }
-                    else {
-                        break;
-                    }
-                }
-                self.tokens.push(Token::Other(lexem));
+            else if let Some(token) = OTHER_TOKENS.iter().find(|a| self.stream.look_for(&a, true)) {
+                self.tokens.push(Token::Other(token.to_string()));
             }
             else {
                 self.error(&format!("Unknown character '{}'", self.stream.last_char()));
