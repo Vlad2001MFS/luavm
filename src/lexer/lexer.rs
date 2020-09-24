@@ -66,8 +66,12 @@ impl Lexer {
             else if OTHER_TOKENS.iter().any(|a| a.starts_with(self.stream.last_char())) {
                 let mut lexem = self.stream.last_char().to_string();
                 while self.stream.next(false) {
-                    if OTHER_TOKENS.iter().any(|a| a.starts_with(self.stream.last_char())) {
-                        lexem.push(self.stream.last_char());
+                    let new_lexem = lexem.clone() + &self.stream.last_char().to_string();
+                    if OTHER_TOKENS.iter().any(|a| *a == &new_lexem) {
+                        break;
+                    }
+                    else if OTHER_TOKENS.iter().any(|a| a.starts_with(&new_lexem)) {
+                        lexem = new_lexem;
                     }
                     else {
                         break;
