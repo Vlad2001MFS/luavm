@@ -67,7 +67,7 @@ impl TextStream {
         }
 
         if extract {
-            for _ in 0..=s.len() {
+            for _ in 0..s.len() {
                 self.next(false);
             }
         }
