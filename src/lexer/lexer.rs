@@ -75,7 +75,7 @@ impl Lexer {
             else if self.stream.last_char().is_alphabetic() || self.stream.last_char() == '_' {
                 let mut name = self.stream.last_char().to_string();
                 while self.stream.next(false) {
-                    if self.stream.last_char().is_alphanumeric() {
+                    if self.stream.last_char().is_alphanumeric() || self.stream.last_char() == '_' {
                         name.push(self.stream.last_char());
                     }
                     else {
