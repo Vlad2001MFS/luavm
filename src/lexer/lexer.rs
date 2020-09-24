@@ -38,7 +38,19 @@ impl Lexer {
         while !self.stream.is_eof() {
             self.stream.skip();
 
-            if self.stream.last_char() == '\'' || self.stream.last_char() == '"' {
+            if self.stream.look_for("--[[", true) {
+                let mut depth = 1;
+                while depth > 0 {
+                    if self.stream.look_for("--]]", true) {
+                        depth -= 1;
+                    }
+                    else if self.stream.look_for("--[[", true) {
+                        depth += 1;
+                    }
+                    self.stream.next(false);
+                }
+            }
+            else if self.stream.last_char() == '\'' || self.stream.last_char() == '"' {
                 let mut short_literal = String::new();
                 while self.stream.next(false) {
                     if self.stream.last_char() == '\'' || self.stream.last_char() == '"' {

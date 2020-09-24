@@ -4,7 +4,7 @@ pub use lexer::*;
 
 const TEST_SOURCE1: &str = r#"
 io.write
-(
+(--[[ my first --[[ my --[[ my first program--[[ my first program in Lua --]] in Lua --]]first program --[[ my first program in Lua --]]in Lua --]]program in Lua --]]
    "Hello world, from ",_VERSION,"!\n"
 )
 "#;

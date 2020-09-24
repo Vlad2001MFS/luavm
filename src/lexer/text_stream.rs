@@ -54,8 +54,33 @@ impl TextStream {
         }
     }
 
+    pub fn look_for(&mut self, s: &str, extract: bool) -> bool {
+        for (i, ch) in s.chars().enumerate() {
+            match self.look(i) {
+                Some(look_ch) => {
+                    if ch != look_ch {
+                        return false;
+                    }
+                }
+                None => return false,
+            }
+        }
+
+        if extract {
+            for _ in 0..=s.len() {
+                self.next(false);
+            }
+        }
+
+        true
+    }
+
+    pub fn look(&self, offset: usize) -> Option<char> {
+        self.data.get(self.current_idx + offset - 1).map(|a| *a)
+    }
+
     pub fn skip(&mut self) {
-        while self.last_char.is_ascii_whitespace() {
+        while self.last_char.is_whitespace() {
             self.next(false);
         }
     }
