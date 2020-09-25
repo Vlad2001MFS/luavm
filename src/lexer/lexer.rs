@@ -150,10 +150,7 @@ impl Lexer {
                     _ => Token::Identifier(name),
                 });
             }
-            else if let Some(token) = OTHER_TOKENS.iter().find(|a| self.stream.look_for(&a, true)) {
-                self.tokens.push(Token::Other(token.to_string()));
-            }
-            else if self.stream.last_char().is_digit(10) {
+            else if self.stream.last_char().is_digit(10) || (self.stream.last_char() == '-' && self.stream.look(1).unwrap_or('\0').is_digit(10)) {
                 if self.stream.look(1).unwrap_or('\0').to_ascii_lowercase() == 'x' {
                     self.stream.next(false);
 
@@ -182,6 +179,9 @@ impl Lexer {
     
                     self.tokens.push(Token::Int(number.parse().unwrap()));
                 }
+            }
+            else if let Some(token) = OTHER_TOKENS.iter().find(|a| self.stream.look_for(&a, true)) {
+                self.tokens.push(Token::Other(token.to_string()));
             }
             else {
                 self.error(&format!("Unknown character '{}'", self.stream.last_char()));
