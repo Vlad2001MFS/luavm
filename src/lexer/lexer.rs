@@ -15,6 +15,35 @@ pub enum Token {
     Identifier(String),
     ShortLiteral(String),
     Other(String),
+
+    // Keywords
+    Function,
+    End,
+
+    If,
+    Then,
+    Else,
+    ElseIf,
+
+    For,
+    While,
+    Do,
+    Repeat,
+    Until,
+
+    Or,
+    And,
+    Not,
+
+    Goto,
+    Break,
+    Return,
+
+    In,
+    Local,
+    Nil,
+    True,
+    False,
 }
 
 pub struct Lexer {
@@ -82,7 +111,38 @@ impl Lexer {
                         break;
                     }
                 }
-                self.tokens.push(Token::Identifier(name));
+
+                self.tokens.push(match name.as_str() {
+                    "function" => Token::Function,
+                    "end" => Token::End,
+
+                    "if" => Token::If,
+                    "then" => Token::Then,
+                    "else" => Token::Else,
+                    "elseif" => Token::ElseIf,
+
+                    "for" => Token::For,
+                    "while" => Token::While,
+                    "do" => Token::Do,
+                    "repeat" => Token::Repeat,
+                    "until" => Token::Until,
+
+                    "or" => Token::Or,
+                    "and" => Token::And,
+                    "not" => Token::Not,
+
+                    "goto" => Token::Goto,
+                    "break" => Token::Break,
+                    "return" => Token::Return,
+
+                    "in" => Token::In,
+                    "local" => Token::Local,
+                    "nil" => Token::Nil,
+                    "true" => Token::True,
+                    "false" => Token::False,
+
+                    _ => Token::Identifier(name),
+                });
             }
             else if let Some(token) = OTHER_TOKENS.iter().find(|a| self.stream.look_for(&a, true)) {
                 self.tokens.push(Token::Other(token.to_string()));

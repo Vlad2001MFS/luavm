@@ -10,13 +10,16 @@ io.write
 )
 "#;
 
+const TEST_SOURCE2: &str = r#"
+--t = {10,52,34,44,86,38}
+local v = table.binsearch(t, "6", function(v) return v % "10" end); assert(v["1"] == "5")
+"#;
+
 fn main() {
-    let tokens = Lexer::parse(TEST_SOURCE1, "test_source");
-    let mut tokens_str = String::new();
-    tokens_str.push_str("token = [\n");
+    let tokens = Lexer::parse(TEST_SOURCE2, "test_source");
+    println!("token = [");
     for token in tokens.iter() {
-        tokens_str.push_str(&format!("  {:?}\n", token));
+        println!("  {:?}", token);
     }
-    tokens_str.push_str("]");
-    println!("{}", tokens_str);
+    println!("]");
 }
