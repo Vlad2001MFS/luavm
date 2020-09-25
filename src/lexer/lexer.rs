@@ -10,11 +10,16 @@ const OTHER_TOKENS: [&str; 33] = [
     ";",    ":",    ",",    ".",    "..",   "...",
 ];
 
+const HEX_CHARS: [char; 16] = [
+    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F',
+];
+
 #[derive(Debug)]
 pub enum Token {
     Identifier(String),
     ShortLiteral(String),
     Int(i64),
+    Real(f64),
     Other(String),
 
     // Keywords
@@ -149,17 +154,34 @@ impl Lexer {
                 self.tokens.push(Token::Other(token.to_string()));
             }
             else if self.stream.last_char().is_digit(10) {
-                let mut number = self.stream.last_char().to_string();
-                while self.stream.next(false) {
-                    if self.stream.last_char().is_digit(10) {
-                        number.push(self.stream.last_char());
-                    }
-                    else {
-                        break;
-                    }
-                }
+                if self.stream.look(1).unwrap_or('\0').to_ascii_lowercase() == 'x' {
+                    self.stream.next(false);
 
-                self.tokens.push(Token::Int(number.parse().unwrap()));
+                    let mut number = String::new();
+                    while self.stream.next(false) {
+                        if HEX_CHARS.iter().any(|a| *a == self.stream.last_char()) {
+                            number.push(self.stream.last_char());
+                        }
+                        else {
+                            break;
+                        }
+                    }
+                    
+                    self.tokens.push(Token::Int(i64::from_str_radix(&number, 16).unwrap()));
+                }
+                else {
+                    let mut number = self.stream.last_char().to_string();
+                    while self.stream.next(false) {
+                        if self.stream.last_char().is_digit(10) {
+                            number.push(self.stream.last_char());
+                        }
+                        else {
+                            break;
+                        }
+                    }
+    
+                    self.tokens.push(Token::Int(number.parse().unwrap()));
+                }
             }
             else {
                 self.error(&format!("Unknown character '{}'", self.stream.last_char()));
