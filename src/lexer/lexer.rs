@@ -168,16 +168,33 @@ impl Lexer {
                 }
                 else {
                     let mut number = self.stream.last_char().to_string();
+                    let mut has_dot = false;
+                    let mut has_exponent = false;
                     while self.stream.next(false) {
                         if self.stream.last_char().is_digit(10) {
                             number.push(self.stream.last_char());
+                        }
+                        else if !has_dot && self.stream.last_char() == '.' {
+                            has_dot = true;
+                            number.push(self.stream.last_char());
+                        }
+                        else if !has_exponent && self.stream.last_char().to_ascii_lowercase() == 'e' {
+                            has_exponent = true;
+                            number.push(self.stream.last_char());
+                            if self.stream.look(1).unwrap_or('\0') == '-' {
+                                self.stream.next(false);
+                                number.push('-');
+                            }
                         }
                         else {
                             break;
                         }
                     }
     
-                    self.tokens.push(Token::Int(number.parse().unwrap()));
+                    match has_dot || has_exponent {
+                        true => self.tokens.push(Token::Real(number.parse().unwrap())),
+                        false => self.tokens.push(Token::Int(number.parse().unwrap())),
+                    }
                 }
             }
             else if let Some(token) = OTHER_TOKENS.iter().find(|a| self.stream.look_for(&a, true)) {
