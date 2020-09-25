@@ -11,8 +11,8 @@ io.write
 "#;
 
 const TEST_SOURCE2: &str = r#"
---t = {10,52,34,44,86,38}
-local v = table.binsearch(t, "6", function(v) return v % "10" end); assert(v["1"] == "5")
+t = {10,52,34,44,86,38}
+local v = table.binsearch(t, 6, function(v) return v % 10 end); assert(v[1] == 5)
 "#;
 
 fn main() {

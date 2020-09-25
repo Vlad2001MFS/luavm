@@ -14,6 +14,7 @@ const OTHER_TOKENS: [&str; 33] = [
 pub enum Token {
     Identifier(String),
     ShortLiteral(String),
+    Int(i64),
     Other(String),
 
     // Keywords
@@ -146,6 +147,19 @@ impl Lexer {
             }
             else if let Some(token) = OTHER_TOKENS.iter().find(|a| self.stream.look_for(&a, true)) {
                 self.tokens.push(Token::Other(token.to_string()));
+            }
+            else if self.stream.last_char().is_digit(10) {
+                let mut number = self.stream.last_char().to_string();
+                while self.stream.next(false) {
+                    if self.stream.last_char().is_digit(10) {
+                        number.push(self.stream.last_char());
+                    }
+                    else {
+                        break;
+                    }
+                }
+
+                self.tokens.push(Token::Int(number.parse().unwrap()));
             }
             else {
                 self.error(&format!("Unknown character '{}'", self.stream.last_char()));
