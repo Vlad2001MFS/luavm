@@ -54,7 +54,7 @@ impl TextStream {
         }
     }
 
-    pub fn look_for(&mut self, s: &str, extract: bool) -> bool {
+    pub fn look_for(&mut self, s: &str, extract_readed: bool) -> bool {
         for (i, ch) in s.chars().enumerate() {
             match self.look(i) {
                 Some(look_ch) => {
@@ -66,7 +66,7 @@ impl TextStream {
             }
         }
 
-        if extract {
+        if extract_readed {
             for _ in 0..s.len() {
                 self.next(false);
             }
