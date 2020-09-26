@@ -17,6 +17,10 @@ impl Position {
             self.column += 1;
         }
     }
+
+    pub fn column(&self) -> usize {
+        self.column
+    }
 }
 
 impl Default for Position {
@@ -37,6 +41,7 @@ impl Display for Position {
 
 pub struct TextStream {
     data: Vec<char>,
+    lines: Vec<String>,
     last_char: char,
     current_idx: usize,
     position: Position,
@@ -48,6 +53,7 @@ impl TextStream {
         let last_char = data[0];
         TextStream {
             data,
+            lines: src.lines().map(|a| a.to_owned()).collect(),
             last_char,
             current_idx: 1,
             position: Position::default(),
@@ -107,6 +113,10 @@ impl TextStream {
 
     pub fn position(&self) -> &Position {
         &self.position
+    }
+
+    pub fn current_line(&self) -> &str {
+        &self.lines[self.position.line - 1]
     }
 
     pub fn is_eof(&self) -> bool {

@@ -224,6 +224,7 @@ impl Lexer {
     }
 
     fn error(&self, desc: &str) {
-        panic!(format!("{}:{}: {}", self.name, self.stream.position(), desc))
+        let pointer = " ".repeat(self.stream.position().column() - 1) + "^";
+        panic!(format!("{}:{}: {}\n{}\n{}", self.name, self.stream.position(), desc, self.stream.current_line(), pointer))
     }
 }
