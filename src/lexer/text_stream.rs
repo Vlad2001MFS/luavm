@@ -92,9 +92,9 @@ impl TextStream {
 
         match self.data.get(self.current_idx) {
             Some(ch) => {
+                self.position.update(self.last_char);
                 self.last_char = *ch;
                 self.current_idx += 1;
-                self.position.update(*ch);
                 true
             }
             None => false,
