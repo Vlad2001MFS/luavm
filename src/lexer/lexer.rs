@@ -209,12 +209,10 @@ impl Lexer {
                     }
                     has_exponent = true;
                     number.push(self.stream.last_char());
-                    if self.stream.look(1).unwrap_or('\0') == '-' {
-                        self.stream.next(false);
+                    if self.stream.look_for("-", 1, true) {
                         number.push('-');
                     }
-                    else  if self.stream.look(1).unwrap_or('\0') == '+' {
-                        self.stream.next(false);
+                    else if self.stream.look_for("+", 1, true) {
                         number.push('+');
                     }
                 }
@@ -273,9 +271,11 @@ impl Lexer {
                     }
                     has_exponent = true;
                     number.push(self.stream.last_char());
-                    if self.stream.look(1).unwrap_or('\0') == '-' {
-                        self.stream.next(false);
+                    if self.stream.look_for("-", 1, true) {
                         number.push('-');
+                    }
+                    else if self.stream.look_for("+", 1, true) {
+                        number.push('+');
                     }
                 }
                 else {
