@@ -72,10 +72,10 @@ impl Lexer {
         while !self.stream.is_eof() {
             self.stream.skip();
             
-            if self.stream.look_for("--[[", true) {
+            if self.stream.look_for("--[[", 0, true) {
                 self.process_block_comment();
             }
-            else if self.stream.look_for("--", true) {
+            else if self.stream.look_for("--", 0, true) {
                 self.process_line_comment();
             }
             else if self.stream.last_char() == '\'' || self.stream.last_char() == '"' {
@@ -87,7 +87,7 @@ impl Lexer {
             else if self.stream.last_char().is_digit(10) || (self.stream.last_char() == '-' && self.stream.look(1).unwrap_or('\0').is_digit(10)) {
                 self.process_number();
             }
-            else if let Some(token) = OTHER_TOKENS.iter().find(|a| self.stream.look_for(&a, true)) {
+            else if let Some(token) = OTHER_TOKENS.iter().find(|a| self.stream.look_for(&a, 0, true)) {
                 self.tokens.push(Token::Other(token.to_string()));
             }
             else {
@@ -99,10 +99,10 @@ impl Lexer {
     fn process_block_comment(&mut self) {
         let mut depth = 1;
         while depth > 0 {
-            if self.stream.look_for("--]]", true) {
+            if self.stream.look_for("--]]", 0, true) {
                 depth -= 1;
             }
-            else if self.stream.look_for("--[[", true) {
+            else if self.stream.look_for("--[[", 0, true) {
                 depth += 1;
             }
             self.stream.next(false);
@@ -193,7 +193,7 @@ impl Lexer {
             let mut has_digit = false;
             let mut has_dot = false;
             let mut has_exponent = false;
-            
+
             while self.stream.next(false) {
                 if HEX_CHARS.iter().any(|a| *a == self.stream.last_char().to_ascii_uppercase()) {
                     has_digit = true;

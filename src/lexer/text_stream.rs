@@ -60,9 +60,9 @@ impl TextStream {
         }
     }
 
-    pub fn look_for(&mut self, s: &str, extract_readed: bool) -> bool {
+    pub fn look_for(&mut self, s: &str, start_offset: usize, extract_readed: bool) -> bool {
         for (i, ch) in s.chars().enumerate() {
-            match self.look(i) {
+            match self.look(start_offset + i) {
                 Some(look_ch) => {
                     if ch != look_ch {
                         return false;
