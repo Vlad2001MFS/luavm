@@ -178,28 +178,89 @@ impl Lexer {
     }
 
     fn process_number(&mut self) {
+        let is_negative = if self.stream.last_char() == '-' {
+            self.stream.next(false);
+            true
+        }
+        else {
+            false
+        };
+
         if self.stream.look(1).unwrap_or('\0').to_ascii_lowercase() == 'x' {
             self.stream.next(false);
             
             let mut number = String::new();
+            let mut has_digit = false;
+            let mut has_dot = false;
+            let mut has_exponent = false;
+            
             while self.stream.next(false) {
-                if HEX_CHARS.iter().any(|a| *a == self.stream.last_char()) {
+                if HEX_CHARS.iter().any(|a| *a == self.stream.last_char().to_ascii_uppercase()) {
+                    has_digit = true;
                     number.push(self.stream.last_char());
+                }
+                else if !has_dot  && self.stream.last_char() == '.' {
+                    has_dot = true;
+                    number.push(self.stream.last_char());
+                }
+                else if !has_exponent && self.stream.last_char().to_ascii_lowercase() == 'p' {
+                    if !has_digit {
+                        self.error("Invalid hexadecimal number. The exponent requires at least one digit in a number");
+                    }
+                    has_exponent = true;
+                    number.push(self.stream.last_char());
+                    if self.stream.look(1).unwrap_or('\0') == '-' {
+                        self.stream.next(false);
+                        number.push('-');
+                    }
+                    else  if self.stream.look(1).unwrap_or('\0') == '+' {
+                        self.stream.next(false);
+                        number.push('+');
+                    }
                 }
                 else {
                     break;
                 }
             }
             
-            let num = i64::from_str_radix(&number, 16).unwrap();
-            self.tokens.push(Token::Number(num as f64));
+            let num = match has_dot {
+                true => {
+                    let number: String = "0x".to_string() + &number;
+                    if !has_exponent {
+                        let number = number + "p0";
+                        hexf::parse_hexf64(&number, false).unwrap()
+                    }
+                    else {
+                        hexf::parse_hexf64(&number, false).unwrap()
+                    }
+                }
+                false => {
+                    if has_exponent {
+                        let number = number.to_ascii_lowercase();
+                        let mut num_exp = number.split("p");
+                        let num = num_exp.nth(0).unwrap();
+                        let exp = num_exp.nth(0).unwrap();
+                        let number = "0x".to_owned() + &num + ".0p" + &exp;
+                        hexf::parse_hexf64(&number, false).unwrap()
+                    }
+                    else {
+                        i64::from_str_radix(&number, 16).unwrap() as f64
+                    }
+                },
+            };
+            self.tokens.push(Token::Number(match is_negative {
+                true => -num,
+                false => num
+            }));
         }
         else {
             let mut number = self.stream.last_char().to_string();
+            let mut has_digit = false;
             let mut has_dot = false;
             let mut has_exponent = false;
             while self.stream.next(false) {
                 if self.stream.last_char().is_digit(10) {
+                    has_digit = true;
                     number.push(self.stream.last_char());
                 }
                 else if !has_dot && self.stream.last_char() == '.' {
@@ -207,6 +268,9 @@ impl Lexer {
                     number.push(self.stream.last_char());
                 }
                 else if !has_exponent && self.stream.last_char().to_ascii_lowercase() == 'e' {
+                    if !has_digit {
+                        self.error("Invalid number. The exponent requires at least one digit in a number");
+                    }
                     has_exponent = true;
                     number.push(self.stream.last_char());
                     if self.stream.look(1).unwrap_or('\0') == '-' {
@@ -219,7 +283,11 @@ impl Lexer {
                 }
             }
 
-            self.tokens.push(Token::Number(number.parse().unwrap()))
+            let num = number.parse::<f64>().unwrap();
+            self.tokens.push(Token::Number(match is_negative {
+                true => -num,
+                false => num
+            }));
         }
     }
 
