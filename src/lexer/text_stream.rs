@@ -60,12 +60,17 @@ impl TextStream {
         }
     }
 
-    pub fn look_for(&mut self, s: &str, start_offset: usize, extract_readed: bool) -> bool {
+    pub fn look_for(&mut self, s: &str, start_offset: usize, case_sensitive: bool, extract_readed: bool) -> bool {
         for (i, ch) in s.chars().enumerate() {
             match self.look(start_offset + i) {
                 Some(look_ch) => {
-                    if ch != look_ch {
-                        return false;
+                    match case_sensitive {
+                        true => if ch != look_ch {
+                            return false;
+                        }
+                        false => if !ch.to_lowercase().eq(look_ch.to_lowercase()) {
+                            return false;
+                        }
                     }
                 }
                 None => return false,
