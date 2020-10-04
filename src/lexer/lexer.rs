@@ -119,9 +119,10 @@ impl Lexer {
 
     fn try_process_short_string_literal(&mut self) -> bool {
         if self.stream.last_char() == '\'' || self.stream.last_char() == '"' {
+            let str_open_symbol = self.stream.last_char();
             let mut string = String::new();
 
-            while self.stream.next(false) && self.stream.last_char() != '\'' && self.stream.last_char() != '"' {
+            while self.stream.next(false) && self.stream.last_char() != str_open_symbol {
                 if self.stream.last_char() == '\\' {
                     self.stream.next(false);
                 }
