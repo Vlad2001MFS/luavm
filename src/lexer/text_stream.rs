@@ -57,20 +57,19 @@ impl TextStream {
     }
 
     pub fn look(&self, offset: usize) -> Option<char> {
-        self.data.get(self.current_idx + offset - 1).map(|a| *a)
+        self.data.get(self.current_idx + offset - 1).copied()
     }
 
     pub fn look_for_str(&mut self, s: &str, start_offset: usize, case_sensitive: bool, extract_readed: bool) -> bool {
         for (i, ch) in s.chars().enumerate() {
             match self.look(start_offset + i) {
                 Some(look_ch) => {
-                    match case_sensitive {
-                        true => if ch != look_ch {
-                            return false;
-                        }
-                        false => if !ch.to_lowercase().eq(look_ch.to_lowercase()) {
-                            return false;
-                        }
+                    let is_equal = match case_sensitive {
+                        true => look_ch == ch,
+                        false => look_ch.to_lowercase().eq(ch.to_lowercase()),
+                    };
+                    if !is_equal {
+                        return false;
                     }
                 }
                 None => return false,
