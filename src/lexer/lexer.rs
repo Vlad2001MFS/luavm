@@ -109,8 +109,7 @@ impl Lexer {
 
     fn try_process_line_comment(&mut self) -> bool {
         if self.stream.look_for("--", 0, false, true) {
-            while self.stream.last_char() != '\n' {
-                self.stream.next();
+            while self.stream.last_char() != '\n' && self.stream.next() {
             }
             return true;
         }
