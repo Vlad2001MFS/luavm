@@ -60,7 +60,7 @@ impl TextStream {
         self.data.get(self.current_idx + offset - 1).map(|a| *a)
     }
 
-    pub fn look_for(&mut self, s: &str, start_offset: usize, case_sensitive: bool, extract_readed: bool) -> bool {
+    pub fn look_for_str(&mut self, s: &str, start_offset: usize, case_sensitive: bool, extract_readed: bool) -> bool {
         for (i, ch) in s.chars().enumerate() {
             match self.look(start_offset + i) {
                 Some(look_ch) => {

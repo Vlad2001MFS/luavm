@@ -91,13 +91,13 @@ impl Lexer {
     }
 
     fn try_process_block_comment(&mut self) -> bool {
-        if self.stream.look_for("--[[", 0, false, true) {
+        if self.stream.look_for_str("--[[", 0, false, true) {
             let mut depth = 1;
             while depth > 0 {
-                if self.stream.look_for("--[[", 0, false, true) {
+                if self.stream.look_for_str("--[[", 0, false, true) {
                     depth += 1;
                 }
-                else if self.stream.look_for("--]]", 0, false, true) {
+                else if self.stream.look_for_str("--]]", 0, false, true) {
                     depth -= 1;
                 }
                 self.stream.next();
@@ -108,7 +108,7 @@ impl Lexer {
     }
 
     fn try_process_line_comment(&mut self) -> bool {
-        if self.stream.look_for("--", 0, false, true) {
+        if self.stream.look_for_str("--", 0, false, true) {
             while self.stream.last_char() != '\n' && self.stream.next() {
             }
             return true;
@@ -191,7 +191,7 @@ impl Lexer {
             _ => (false, 0),
         };
 
-        if self.stream.look_for("0x", start_offset, false, false) {
+        if self.stream.look_for_str("0x", start_offset, false, false) {
             if start_offset > 0 {
                 self.stream.next();
             }
@@ -226,10 +226,10 @@ impl Lexer {
                     has_exponent = true;
                     number.push(self.stream.last_char());
 
-                    if self.stream.look_for("-", 1, false, true) {
+                    if self.stream.look_for_str("-", 1, false, true) {
                         number.push('-');
                     }
-                    else if self.stream.look_for("+", 1, false, true) {
+                    else if self.stream.look_for_str("+", 1, false, true) {
                         number.push('+');
                     }
                 }
@@ -293,10 +293,10 @@ impl Lexer {
                     has_exponent = true;
                     number.push(self.stream.last_char());
 
-                    if self.stream.look_for("-", 1, false, true) {
+                    if self.stream.look_for_str("-", 1, false, true) {
                         number.push('-');
                     }
-                    else if self.stream.look_for("+", 1, false, true) {
+                    else if self.stream.look_for_str("+", 1, false, true) {
                         number.push('+');
                     }
                 }
@@ -315,7 +315,7 @@ impl Lexer {
     }
 
     fn try_process_symbolic_tokens(&mut self) -> bool {
-        if let Some(token) = SYMBOLIC_TOKENS.iter().find(|a| self.stream.look_for(&a, 0, false, true)) {
+        if let Some(token) = SYMBOLIC_TOKENS.iter().find(|a| self.stream.look_for_str(&a, 0, false, true)) {
             self.tokens.push(Token::Symbol(token.to_string()));
             return true;
         }
