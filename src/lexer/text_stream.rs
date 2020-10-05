@@ -86,7 +86,7 @@ impl TextStream {
     }
 
     pub fn skip(&mut self) {
-        while self.last_char().is_ascii_whitespace() {
+        while !self.is_eof() && self.last_char().is_ascii_whitespace() {
             self.next();
         }
     }

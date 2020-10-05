@@ -73,15 +73,15 @@ impl Lexer {
     }
 
     fn process(&mut self) {
+        self.stream.skip();
         while !self.stream.is_eof() {
-            self.stream.skip();
-            
-            if self.try_process_block_comment()
-            || self.try_process_line_comment()
+            if self.try_process_line_comment()
+            || self.try_process_block_comment()
             || self.try_process_short_string_literal()
             || self.try_process_identifier()
             || self.try_process_number()
             || self.try_process_symbolic_tokens() {
+                self.stream.skip();
                 continue;
             }
             else {
@@ -93,26 +93,21 @@ impl Lexer {
         }
     }
 
-    fn try_process_block_comment(&mut self) -> bool {
-        if self.stream.look_for_str("--[[", 0, false, true) {
-            let mut depth = 1;
-            while depth > 0 {
-                if self.stream.look_for_str("--[[", 0, false, true) {
-                    depth += 1;
+    fn try_process_line_comment(&mut self) -> bool {
+        if self.stream.look_for_str("--", 0, false, true) {
+            while self.stream.last_char() != '\n' {
+                if !self.stream.next() {
+                    break;
                 }
-                else if self.stream.look_for_str("--]]", 0, false, true) {
-                    depth -= 1;
-                }
-                self.stream.next();
             }
-            return true
+            return true;
         }
         false
     }
 
-    fn try_process_line_comment(&mut self) -> bool {
-        if self.stream.look_for_str("--", 0, false, true) {
-            while self.stream.last_char() != '\n' {
+    fn try_process_block_comment(&mut self) -> bool {
+        if self.stream.look_for_str("--[[", 0, false, true) {
+            while !self.stream.look_for_str("]]", 0, false, true) {
                 if !self.stream.next() {
                     break;
                 }
