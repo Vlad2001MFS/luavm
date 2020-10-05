@@ -187,16 +187,7 @@ impl Lexer {
     }
 
     fn try_process_number(&mut self) -> bool {
-        let (is_negative, start_offset) = match self.stream.last_char() {
-            '+' => (false, 1),
-            '-' => (true, 1),
-            _ => (false, 0),
-        };
-
-        if self.stream.look_for_str("0x", start_offset, false, false) {
-            if start_offset > 0 {
-                self.stream.next();
-            }
+        if self.stream.look_for_str("0x", 0, false, false) {
             self.stream.next();
 
             let mut number = "0x".to_string();
@@ -255,17 +246,10 @@ impl Lexer {
                 }
             };
 
-            self.tokens.push(Token::Number(match is_negative {
-                true => -num,
-                false => num
-            }));
+            self.tokens.push(Token::Number(num));
             return true;
         }
-        else if self.stream.look(start_offset).map_or(false, |a| a.is_digit(10)) {
-            if start_offset > 0 {
-                self.stream.next();
-            }
-            
+        else if self.stream.look(0).map_or(false, |a| a.is_digit(10)) {
             let mut number = self.stream.last_char().to_string();
             let mut has_digit = false;
             let mut has_dot = false;
@@ -308,10 +292,8 @@ impl Lexer {
             }
 
             let num = number.parse::<f64>().unwrap();
-            self.tokens.push(Token::Number(match is_negative {
-                true => -num,
-                false => num
-            }));
+            self.tokens.push(Token::Number(num));
+            return true;
         }
         false
     }
