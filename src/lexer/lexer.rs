@@ -112,7 +112,10 @@ impl Lexer {
 
     fn try_process_line_comment(&mut self) -> bool {
         if self.stream.look_for_str("--", 0, false, true) {
-            while self.stream.last_char() != '\n' && self.stream.next() {
+            while self.stream.last_char() != '\n' {
+                if !self.stream.next() {
+                    break;
+                }
             }
             return true;
         }
@@ -142,13 +145,9 @@ impl Lexer {
     fn try_process_identifier(&mut self) -> bool {
         if self.stream.last_char().is_alphabetic() || self.stream.last_char() == '_' {
             let mut name = self.stream.last_char().to_string();
-            while self.stream.next() {
-                if self.stream.last_char().is_alphanumeric() || self.stream.last_char() == '_' {
-                    name.push(self.stream.last_char());
-                }
-                else {
-                    break;
-                }
+
+            while self.stream.next() && (self.stream.last_char().is_alphanumeric() || self.stream.last_char() == '_') {
+                name.push(self.stream.last_char());
             }
 
             self.tokens.push(match name.as_str() {
