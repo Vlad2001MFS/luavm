@@ -85,7 +85,10 @@ impl Lexer {
                 continue;
             }
             else {
-                self.error(&format!("Unknown character '{}'", self.stream.last_char()));
+                match self.stream.look(0) {
+                    Some(ch) => self.error(&format!("Unknown character '{}'", ch)),
+                    None => self.error(&format!("Unexpected end of source"))
+                }
             }
         }
     }
