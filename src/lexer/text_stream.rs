@@ -42,19 +42,15 @@ impl Display for Position {
 pub struct TextStream {
     data: Vec<char>,
     lines: Vec<String>,
-    last_char: char,
     current_idx: usize,
     position: Position,
 }
 
 impl TextStream {
     pub fn new(src: String) -> TextStream {
-        let data: Vec<char> = src.chars().collect();
-        let last_char = data[0];
         TextStream {
-            data,
+            data: src.chars().collect(),
             lines: src.lines().map(|a| a.to_owned()).collect(),
-            last_char,
             current_idx: 1,
             position: Position::default(),
         }
@@ -91,7 +87,7 @@ impl TextStream {
     }
 
     pub fn skip(&mut self) {
-        while self.last_char.is_ascii_whitespace() {
+        while self.last_char().is_ascii_whitespace() {
             self.next();
         }
     }
@@ -99,8 +95,7 @@ impl TextStream {
     pub fn next(&mut self) -> bool {
         match self.data.get(self.current_idx) {
             Some(ch) => {
-                self.position.update(self.last_char);
-                self.last_char = *ch;
+                self.position.update(*ch);
                 self.current_idx += 1;
                 true
             }
@@ -109,7 +104,7 @@ impl TextStream {
     }
 
     pub fn last_char(&self) -> char {
-        self.last_char
+        self.look(0).unwrap()
     }
 
     pub fn position(&self) -> &Position {
