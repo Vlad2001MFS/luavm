@@ -119,11 +119,6 @@ impl TextStream {
     }
 
     pub fn is_eof(&self) -> bool {
-        if self.current_idx < self.data.len() {
-            false
-        }
-        else {
-            true
-        }
+        self.current_idx >= self.data.len()
     }
 }
