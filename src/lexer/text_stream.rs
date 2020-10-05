@@ -60,6 +60,10 @@ impl TextStream {
         }
     }
 
+    pub fn look(&self, offset: usize) -> Option<char> {
+        self.data.get(self.current_idx + offset - 1).map(|a| *a)
+    }
+
     pub fn look_for(&mut self, s: &str, start_offset: usize, case_sensitive: bool, extract_readed: bool) -> bool {
         for (i, ch) in s.chars().enumerate() {
             match self.look(start_offset + i) {
@@ -79,28 +83,20 @@ impl TextStream {
 
         if extract_readed {
             for _ in 0..s.len() {
-                self.next(false);
+                self.next();
             }
         }
 
         true
     }
 
-    pub fn look(&self, offset: usize) -> Option<char> {
-        self.data.get(self.current_idx + offset - 1).map(|a| *a)
-    }
-
     pub fn skip(&mut self) {
         while self.last_char.is_ascii_whitespace() {
-            self.next(false);
+            self.next();
         }
     }
 
-    pub fn next(&mut self, skip_whitespace: bool) -> bool {
-        if skip_whitespace {
-            self.skip()
-        }
-
+    pub fn next(&mut self) -> bool {
         match self.data.get(self.current_idx) {
             Some(ch) => {
                 self.position.update(self.last_char);

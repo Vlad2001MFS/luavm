@@ -100,7 +100,7 @@ impl Lexer {
                 else if self.stream.look_for("--]]", 0, false, true) {
                     depth -= 1;
                 }
-                self.stream.next(false);
+                self.stream.next();
             }
             return true
         }
@@ -110,7 +110,7 @@ impl Lexer {
     fn try_process_line_comment(&mut self) -> bool {
         if self.stream.look_for("--", 0, false, true) {
             while self.stream.last_char() != '\n' {
-                self.stream.next(false);
+                self.stream.next();
             }
             return true;
         }
@@ -122,14 +122,14 @@ impl Lexer {
             let str_open_symbol = self.stream.last_char();
             let mut string = String::new();
 
-            while self.stream.next(false) && self.stream.last_char() != str_open_symbol {
+            while self.stream.next() && self.stream.last_char() != str_open_symbol {
                 if self.stream.last_char() == '\\' {
-                    self.stream.next(false);
+                    self.stream.next();
                 }
                 
                 string.push(self.stream.last_char());
             }
-            self.stream.next(false);
+            self.stream.next();
 
             self.tokens.push(Token::String(string));
             return true;
@@ -140,7 +140,7 @@ impl Lexer {
     fn try_process_identifier(&mut self) -> bool {
         if self.stream.last_char().is_alphabetic() || self.stream.last_char() == '_' {
             let mut name = self.stream.last_char().to_string();
-            while self.stream.next(false) {
+            while self.stream.next() {
                 if self.stream.last_char().is_alphanumeric() || self.stream.last_char() == '_' {
                     name.push(self.stream.last_char());
                 }
@@ -194,16 +194,16 @@ impl Lexer {
 
         if self.stream.look_for("0x", start_offset, false, false) {
             if start_offset > 0 {
-                self.stream.next(false);
+                self.stream.next();
             }
-            self.stream.next(false);
+            self.stream.next();
 
             let mut number = "0x".to_string();
             let mut has_digit = false;
             let mut has_dot = false;
             let mut has_exponent = false;
 
-            while self.stream.next(false) {
+            while self.stream.next() {
                 if is_hex_digit(self.stream.last_char()) {
                     has_digit = true;
                     number.push(self.stream.last_char());
@@ -262,7 +262,7 @@ impl Lexer {
         }
         else if self.stream.look(start_offset).map_or(false, |a| a.is_digit(10)) {
             if start_offset > 0 {
-                self.stream.next(false);
+                self.stream.next();
             }
             
             let mut number = self.stream.last_char().to_string();
@@ -270,7 +270,7 @@ impl Lexer {
             let mut has_dot = false;
             let mut has_exponent = false;
 
-            while self.stream.next(false) {
+            while self.stream.next() {
                 if self.stream.last_char().is_digit(10) {
                     has_digit = true;
                     number.push(self.stream.last_char());
