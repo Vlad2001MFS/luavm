@@ -99,7 +99,10 @@ impl TextStream {
                 self.current_idx += 1;
                 true
             }
-            None => false,
+            None => {
+                self.current_idx += 1;
+                false
+            },
         }
     }
 
