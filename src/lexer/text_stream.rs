@@ -11,7 +11,7 @@ impl Position {
     pub fn update(&mut self, ch: char) {
         if ch == '\n' {
             self.line += 1;
-            self.column = 1;
+            self.column = 0;
         }
         else {
             self.column += 1;
@@ -27,7 +27,7 @@ impl Default for Position {
     fn default() -> Self {
         Position {
             line: 1,
-            column: 1,
+            column: 0,
         }
     }
 }
