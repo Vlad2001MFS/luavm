@@ -70,6 +70,7 @@ impl Lexer {
             if self.try_process_line_comment()
             || self.try_process_block_comment()
             || self.try_process_short_string_literal()
+            || self.try_process_long_string_literal()
             || self.try_process_identifier()
             || self.try_process_number()
             || self.try_process_symbolic_tokens() {
@@ -207,6 +208,30 @@ impl Lexer {
             }
             self.stream.next();
             
+            println!("{}", string);
+            self.tokens.push(Token::String(string));
+            return true;
+        }
+        false
+    }
+
+    fn try_process_long_string_literal(&mut self) -> bool {
+        if self.stream.look_for_str("[[", 0, false, true) {
+            let mut string = String::new();
+
+            while !self.stream.look_for_str("]]", 0, false, true) {
+                if ["\r", "\n", "\r\n", "\n\r"].iter().find(|s| self.stream.look_for_str(s, 0, false, true)).is_some() && !string.is_empty() {
+                    string.push('\n');
+                }
+                else {
+                    string.push(self.stream.last_char());
+                }
+
+                if !self.stream.next() {
+                    break;
+                }
+            }
+
             println!("{}", string);
             self.tokens.push(Token::String(string));
             return true;
