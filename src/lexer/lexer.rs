@@ -125,12 +125,97 @@ impl Lexer {
             while self.stream.next() && self.stream.last_char() != str_open_symbol {
                 if self.stream.last_char() == '\\' {
                     self.stream.next();
+                    match self.stream.last_char() {
+                        'a' => string.push(0x07 as char),
+                        'b' => string.push(0x07 as char),
+                        'f' => string.push(0x0C as char),
+                        'n' => string.push('\n'),
+                        'r' => string.push('\r'),
+                        't' => string.push('\t'),
+                        'v' => string.push(0x0B as char),
+                        '\\' => string.push('\\'),
+                        '\"' => string.push('\"'),
+                        '\'' => string.push('\''),
+                        'z' => self.stream.skip(),
+                        'u' => {
+                            self.stream.next();
+                            if self.stream.look_for_str("{", 0, false, false) {
+                                let mut num = 0;
+
+                                let mut i = 0;
+                                while self.stream.look(i + 1).map_or(false, |ch| ch != '}') {
+                                    i += 1;
+                                }
+
+                                for _ in 0..i {
+                                    if self.stream.next() && is_hex_digit(self.stream.last_char()) {
+                                        num += self.stream.last_char().to_digit(16).unwrap()*16_u32.pow((i - 1) as u32);
+                                    }
+                                    else {
+                                        self.error("Invalid escaped byte in hexadecimal representation")
+                                    }
+
+                                    i -= 1;
+                                }
+                                self.stream.next();
+
+                                match std::char::from_u32(num) {
+                                    Some(num) => string.push(num),
+                                    None => self.error("Invalid unicode value"),
+                                }
+                            }
+                        }
+                        ch if ch.is_digit(10) => {
+                            let mut num = 0;
+
+                            for i in 0..3 {
+                                if self.stream.last_char().is_digit(10) {
+                                    num += self.stream.last_char().to_digit(10).unwrap()*10_u32.pow(2 - i);
+
+                                    if i < 2 && self.stream.look(1).map_or(false, |ch| ch.is_digit(10)) {
+                                        self.stream.next();
+                                    }
+                                    else {
+                                        num /= 10_u32.pow(2 - i);
+                                        break;
+                                    }
+                                }
+                            }
+
+                            if num < 256 {
+                                string.push(num as u8 as char);
+                            }
+                            else {
+                                self.error(&format!("Invalid value of escaped byte '{}'", num));
+                            }
+                        }
+                        ch if ch == 'x' => {
+                            let mut num = 0;
+
+                            for i in 0..2 {
+                                if self.stream.next() && is_hex_digit(self.stream.last_char()) {
+                                    num += self.stream.last_char().to_digit(16).unwrap()*16_u32.pow(1 - i);
+                                }
+                                else {
+                                    self.error("Invalid escaped byte in hexadecimal representation")
+                                }
+                            }
+
+                            string.push(num as u8 as char);
+                        }
+                        _ => self.error("Unknown escaped sequence"),
+                    }
                 }
-                
-                string.push(self.stream.last_char());
+                else if !self.stream.last_char().is_ascii_control() {
+                    string.push(self.stream.last_char());
+                }
+                else {
+                    self.error("Short string literal can not contain unescaped control symbols");
+                }
             }
             self.stream.next();
-
+            
+            println!("{}", string);
             self.tokens.push(Token::String(string));
             return true;
         }
