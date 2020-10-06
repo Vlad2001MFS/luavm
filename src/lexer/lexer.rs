@@ -10,14 +10,6 @@ const SYMBOLIC_TOKENS: [&str; 33] = [
     ";",    ":",    ",",    ".",    "..",   "...",
 ];
 
-const HEX_DIGIT: [char; 16] = [
-    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F',
-];
-
-fn is_hex_digit(ch: char) -> bool {
-    HEX_DIGIT.contains(&ch.to_ascii_uppercase())
-}
-
 #[derive(Debug)]
 pub enum Token {
     Identifier(String),
@@ -148,7 +140,7 @@ impl Lexer {
                                 }
 
                                 for _ in 0..i {
-                                    if self.stream.next() && is_hex_digit(self.stream.last_char()) {
+                                    if self.stream.next() && self.stream.last_char().is_digit(16) {
                                         num += self.stream.last_char().to_digit(16).unwrap()*16_u32.pow((i - 1) as u32);
                                     }
                                     else {
@@ -193,7 +185,7 @@ impl Lexer {
                             let mut num = 0;
 
                             for i in 0..2 {
-                                if self.stream.next() && is_hex_digit(self.stream.last_char()) {
+                                if self.stream.next() && self.stream.last_char().is_digit(16) {
                                     num += self.stream.last_char().to_digit(16).unwrap()*16_u32.pow(1 - i);
                                 }
                                 else {
@@ -276,7 +268,7 @@ impl Lexer {
             let mut has_exponent = false;
 
             while self.stream.next() {
-                if is_hex_digit(self.stream.last_char()) {
+                if self.stream.last_char().is_digit(16) {
                     has_digit = true;
                     number.push(self.stream.last_char());
                 }
