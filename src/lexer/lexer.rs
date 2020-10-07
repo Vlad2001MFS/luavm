@@ -74,8 +74,8 @@ impl Lexer {
     fn process(&mut self) {
         self.stream.skip();
         while !self.stream.is_eof() {
-            if self.try_process_line_comment()
-            || self.try_process_block_comment()
+            if self.try_process_block_comment()
+            || self.try_process_line_comment()
             || self.try_process_short_string_literal()
             || self.try_process_long_string_literal()
             || self.try_process_identifier()
