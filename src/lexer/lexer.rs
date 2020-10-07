@@ -215,7 +215,6 @@ impl Lexer {
             }
             self.stream.next();
             
-            println!("{}", string);
             self.tokens.push(Token::String(string));
             return true;
         }
@@ -239,7 +238,6 @@ impl Lexer {
                 }
             }
 
-            println!("{}", string);
             self.tokens.push(Token::String(string));
             return true;
         }
