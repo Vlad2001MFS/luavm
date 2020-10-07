@@ -2,16 +2,28 @@ use std::{
     fmt::Display,
 };
 
+#[derive(Clone)]
 pub struct Position {
     line: usize,
     column: usize,
+    content: String,
+    source_name: String,
 }
 
 impl Position {
-    pub fn update(&mut self, ch: char) {
+    pub fn new(content: String, source_name: String) -> Position {
+        Position {
+            content,
+            source_name,
+            ..Position::default()
+        }
+    }
+
+    pub fn update(&mut self, ch: char, lines: &[String]) {
         if ch == '\n' {
             self.line += 1;
             self.column = 0;
+            self.content = lines[self.line - 1].clone();
         }
         else {
             self.column += 1;
@@ -21,13 +33,23 @@ impl Position {
     pub fn column(&self) -> usize {
         self.column
     }
+
+    pub fn content(&self) -> &str {
+        &self.content
+    }
+
+    pub fn source_name(&self) -> &str {
+        &self.source_name
+    }
 }
 
 impl Default for Position {
     fn default() -> Self {
         Position {
             line: 1,
-            column: 0,
+            column: 1,
+            content: String::new(),
+            source_name: String::new(),
         }
     }
 }
@@ -47,12 +69,12 @@ pub struct TextStream {
 }
 
 impl TextStream {
-    pub fn new(src: String) -> TextStream {
+    pub fn new(src: String, name: String) -> TextStream {
         TextStream {
             data: src.chars().collect(),
             lines: src.lines().map(|a| a.to_owned()).collect(),
             current_idx: 1,
-            position: Position::default(),
+            position: Position::new(src.lines().nth(0).unwrap().to_string(), name),
         }
     }
 
@@ -94,7 +116,7 @@ impl TextStream {
     pub fn next(&mut self) -> bool {
         match self.data.get(self.current_idx) {
             Some(ch) => {
-                self.position.update(*ch);
+                self.position.update(*ch, &self.lines);
                 self.current_idx += 1;
                 true
             }
@@ -111,10 +133,6 @@ impl TextStream {
 
     pub fn position(&self) -> &Position {
         &self.position
-    }
-
-    pub fn current_line(&self) -> &str {
-        &self.lines[self.position.line - 1]
     }
 
     pub fn is_eof(&self) -> bool {

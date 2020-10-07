@@ -1,5 +1,5 @@
 use crate::lexer::{
-    TextStream,
+    TextStream, Position,
 };
 
 // Order is important
@@ -54,26 +54,56 @@ pub enum Token {
     False,
 }
 
+pub struct TokenInfo {
+    token: Token,
+    begin_pos: Position,
+    end_pos: Position,
+}
+
+impl TokenInfo {
+    pub fn token(&self) -> &Token {
+        &self.token
+    }
+
+    pub fn begin_pos(&self) -> &Position {
+        &self.begin_pos
+    }
+
+    pub fn end_pos(&self) -> &Position {
+        &self.end_pos
+    }
+}
+
 pub struct Lexer {
-    name: String,
     stream: TextStream,
-    tokens: Vec<Token>,
+    tokens: Vec<TokenInfo>,
+    begin_pos: Position,
 }
 
 impl Lexer {
-    pub fn parse(src: &str, name: &str) -> Vec<Token> {
+    pub fn parse(src: &str, name: &str) -> Vec<TokenInfo> {
         let mut lexer = Lexer {
-            name: name.to_string(),
-            stream: TextStream::new(src.to_string()),
+            stream: TextStream::new(src.to_string(), name.to_string()),
             tokens: Vec::new(),
+            begin_pos: Position::default(),
         };
         lexer.process();
         lexer.tokens
     }
 
+    fn add_token(&mut self, token: Token) {
+        self.tokens.push(TokenInfo {
+            token,
+            begin_pos: self.begin_pos.clone(),
+            end_pos: self.stream.position().clone(),
+        });
+    }
+
     fn process(&mut self) {
         self.stream.skip();
         while !self.stream.is_eof() {
+            self.begin_pos = self.stream.position().clone();
+
             if self.try_process_block_comment()
             || self.try_process_line_comment()
             || self.try_process_short_string_literal()
@@ -215,7 +245,7 @@ impl Lexer {
             }
             self.stream.next();
             
-            self.tokens.push(Token::String(string));
+            self.add_token(Token::String(string));
             return true;
         }
         false
@@ -238,7 +268,7 @@ impl Lexer {
                 }
             }
 
-            self.tokens.push(Token::String(string));
+            self.add_token(Token::String(string));
             return true;
         }
         false
@@ -252,7 +282,7 @@ impl Lexer {
                 name.push(self.stream.last_char());
             }
 
-            self.tokens.push(match name.as_str() {
+            self.add_token(match name.as_str() {
                 "function" => Token::Function,
                 "end" => Token::End,
 
@@ -348,7 +378,7 @@ impl Lexer {
                 }
             };
 
-            self.tokens.push(Token::Number(num));
+            self.add_token(Token::Number(num));
             return true;
         }
         else if self.stream.look(0).map_or(false, |a| a.is_digit(10)) {
@@ -394,7 +424,7 @@ impl Lexer {
             }
 
             let num = number.parse::<f64>().unwrap();
-            self.tokens.push(Token::Number(num));
+            self.add_token(Token::Number(num));
             return true;
         }
         false
@@ -402,7 +432,7 @@ impl Lexer {
 
     fn try_process_symbolic_tokens(&mut self) -> bool {
         if let Some(token) = SYMBOLIC_TOKENS.iter().find(|a| self.stream.look_for_str(&a, 0, false, true)) {
-            self.tokens.push(Token::Symbol(token.to_string()));
+            self.add_token(Token::Symbol(token.to_string()));
             return true;
         }
         false
@@ -410,6 +440,6 @@ impl Lexer {
 
     fn error(&self, desc: &str) {
         let pointer = " ".repeat(self.stream.position().column() - 1) + "^";
-        panic!(format!("{}:{}: {}\n{}\n{}", self.name, self.stream.position(), desc, self.stream.current_line(), pointer))
+        panic!(format!("{}:{}: {}\n{}\n{}", self.stream.position().source_name(), self.stream.position(), desc, self.stream.position().content(), pointer))
     }
 }
