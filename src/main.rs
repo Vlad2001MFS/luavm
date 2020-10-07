@@ -11,8 +11,8 @@ fn main() {
     for token in tokens.iter() {
         println!("  {:?}", token.token());
         if let Token::Break = token.token() {
-            let pointer = " ".repeat(token.begin_pos().column() - 1) + &"^".repeat(token.end_pos().column() - token.begin_pos().column());
-            println!("{}:{}: DESC\n{}\n{}", token.begin_pos().source_name(), token.begin_pos(), token.begin_pos().content(), pointer);
+            let pointer = " ".repeat(token.begin_location().column() - 1) + &"^".repeat(token.end_location().column() - token.begin_location().column());
+            println!("{}:{}: DESC\n{}\n{}", token.begin_location().source_name(), token.begin_location(), token.begin_location().content(), pointer);
         }
     }
     println!("]");

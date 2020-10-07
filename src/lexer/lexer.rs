@@ -1,5 +1,5 @@
 use crate::lexer::{
-    TextStream, Position,
+    TextStream, Location,
 };
 
 // Order is important
@@ -56,8 +56,8 @@ pub enum Token {
 
 pub struct TokenInfo {
     token: Token,
-    begin_pos: Position,
-    end_pos: Position,
+    begin_location: Location,
+    end_location: Location,
 }
 
 impl TokenInfo {
@@ -65,19 +65,19 @@ impl TokenInfo {
         &self.token
     }
 
-    pub fn begin_pos(&self) -> &Position {
-        &self.begin_pos
+    pub fn begin_location(&self) -> &Location {
+        &self.begin_location
     }
 
-    pub fn end_pos(&self) -> &Position {
-        &self.end_pos
+    pub fn end_location(&self) -> &Location {
+        &self.end_location
     }
 }
 
 pub struct Lexer {
     stream: TextStream,
     tokens: Vec<TokenInfo>,
-    begin_pos: Position,
+    begin_location: Location,
 }
 
 impl Lexer {
@@ -85,7 +85,7 @@ impl Lexer {
         let mut lexer = Lexer {
             stream: TextStream::new(src.to_string(), name.to_string()),
             tokens: Vec::new(),
-            begin_pos: Position::default(),
+            begin_location: Location::default(),
         };
         lexer.process();
         lexer.tokens
@@ -94,15 +94,15 @@ impl Lexer {
     fn add_token(&mut self, token: Token) {
         self.tokens.push(TokenInfo {
             token,
-            begin_pos: self.begin_pos.clone(),
-            end_pos: self.stream.position().clone(),
+            begin_location: self.begin_location.clone(),
+            end_location: self.stream.location().clone(),
         });
     }
 
     fn process(&mut self) {
         self.stream.skip();
         while !self.stream.is_eof() {
-            self.begin_pos = self.stream.position().clone();
+            self.begin_location = self.stream.location().clone();
 
             if self.try_process_block_comment()
             || self.try_process_line_comment()
@@ -439,7 +439,7 @@ impl Lexer {
     }
 
     fn error(&self, desc: &str) {
-        let pointer = " ".repeat(self.stream.position().column() - 1) + "^";
-        panic!(format!("{}:{}: {}\n{}\n{}", self.stream.position().source_name(), self.stream.position(), desc, self.stream.position().content(), pointer))
+        let pointer = " ".repeat(self.stream.location().column() - 1) + "^";
+        panic!(format!("{}:{}: {}\n{}\n{}", self.stream.location().source_name(), self.stream.location(), desc, self.stream.location().content(), pointer))
     }
 }

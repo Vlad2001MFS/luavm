@@ -3,19 +3,19 @@ use std::{
 };
 
 #[derive(Clone)]
-pub struct Position {
+pub struct Location {
     line: usize,
     column: usize,
     content: String,
     source_name: String,
 }
 
-impl Position {
-    pub fn new(content: String, source_name: String) -> Position {
-        Position {
+impl Location {
+    pub fn new(content: String, source_name: String) -> Location {
+        Location {
             content,
             source_name,
-            ..Position::default()
+            ..Location::default()
         }
     }
 
@@ -43,9 +43,9 @@ impl Position {
     }
 }
 
-impl Default for Position {
+impl Default for Location {
     fn default() -> Self {
-        Position {
+        Location {
             line: 1,
             column: 1,
             content: String::new(),
@@ -54,7 +54,7 @@ impl Default for Position {
     }
 }
 
-impl Display for Position {
+impl Display for Location {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}:{}", self.line, self.column)
     }
@@ -65,7 +65,7 @@ pub struct TextStream {
     data: Vec<char>,
     lines: Vec<String>,
     current_idx: usize,
-    position: Position,
+    location: Location,
 }
 
 impl TextStream {
@@ -74,7 +74,7 @@ impl TextStream {
             data: src.chars().collect(),
             lines: src.lines().map(|a| a.to_owned()).collect(),
             current_idx: 1,
-            position: Position::new(src.lines().nth(0).unwrap().to_string(), name),
+            location: Location::new(src.lines().nth(0).unwrap().to_string(), name),
         }
     }
 
@@ -116,7 +116,7 @@ impl TextStream {
     pub fn next(&mut self) -> bool {
         match self.data.get(self.current_idx) {
             Some(ch) => {
-                self.position.update(*ch, &self.lines);
+                self.location.update(*ch, &self.lines);
                 self.current_idx += 1;
                 true
             }
@@ -131,8 +131,8 @@ impl TextStream {
         self.look(0).unwrap()
     }
 
-    pub fn position(&self) -> &Position {
-        &self.position
+    pub fn location(&self) -> &Location {
+        &self.location
     }
 
     pub fn is_eof(&self) -> bool {
