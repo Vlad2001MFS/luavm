@@ -1,10 +1,11 @@
 extern crate hexf;
 
-mod lexer;
-mod parser;
+pub mod lexer;
+pub mod parser;
 
-pub use lexer::*;
-pub use parser::*;
+use lexer::{
+    Lexer, Token,
+};
 
 fn main() {
     let test_source = std::fs::read_to_string("./test_lexer.lua").unwrap();
