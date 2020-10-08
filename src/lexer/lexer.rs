@@ -440,6 +440,6 @@ impl Lexer {
 
     fn error(&self, desc: &str) {
         let pointer = " ".repeat(self.stream.location().column() - 1) + "^";
-        panic!(format!("{}:{}: {}\n{}\n{}", self.stream.location().source_name(), self.stream.location(), desc, self.stream.location().content(), pointer))
+        panic!(format!("{}:{}: Lexer error: {}\n{}\n{}", self.stream.location().source_name(), self.stream.location(), desc, self.stream.location().content(), pointer))
     }
 }
