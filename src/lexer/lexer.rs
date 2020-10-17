@@ -2,7 +2,7 @@ use crate::lexer::{
     TextStream, Location,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Token {
     Identifier(String),
     String(String),
@@ -45,7 +45,7 @@ pub enum Token {
     Pow,
     Mod,
     Len,
-    BitNot,
+    BitNotXor,
     BitAnd,
     BitOr,
     ShiftRight,
@@ -100,8 +100,9 @@ pub struct Lexer {
 
 impl Lexer {
     pub fn parse(src: &str, name: &str) -> Vec<TokenInfo> {
+        let src = src.replace("\r\n", "\n").replace("\n\r", "\n").replace("\r", "\n");
         let mut lexer = Lexer {
-            stream: TextStream::new(src.to_string(), name.to_string()),
+            stream: TextStream::new(src, name.to_string()),
             tokens: Vec::new(),
             begin_location: Location::default(),
         };
@@ -273,8 +274,9 @@ impl Lexer {
         if self.stream.look_for_str("[[", 0, false, true) {
             let mut string = String::new();
 
+            let mut first = true;
             while !self.stream.look_for_str("]]", 0, false, true) {
-                if ["\r", "\n", "\r\n", "\n\r"].iter().find(|s| self.stream.look_for_str(s, 0, false, true)).is_some() && !string.is_empty() {
+                if self.stream.look_for_str("\n", 0, false, true) && !first {
                     string.push('\n');
                 }
                 else {
@@ -284,6 +286,8 @@ impl Lexer {
                 if !self.stream.next() {
                     break;
                 }
+                
+                first = false;
             }
 
             self.add_token(Token::String(string));
@@ -522,7 +526,7 @@ impl Lexer {
             return true;
         }
         else if self.stream.look_for_str("~", 0, false, true) {
-            self.add_token(Token::BitNot);
+            self.add_token(Token::BitNotXor);
             return true;
         }
         else if self.stream.look_for_str("|", 0, false, true) {

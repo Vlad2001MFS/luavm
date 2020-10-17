@@ -23,7 +23,7 @@ impl Location {
         if ch == '\n' {
             self.line += 1;
             self.column = 0;
-            self.content = lines[self.line - 1].clone();
+            self.content = lines.get(self.line - 1).cloned().unwrap_or_default();
         }
         else {
             self.column += 1;
@@ -137,6 +137,6 @@ impl TextStream {
     }
 
     pub fn is_eof(&self) -> bool {
-        self.current_idx >= self.data.len()
+        (self.current_idx - 1) >= self.data.len()
     }
 }
