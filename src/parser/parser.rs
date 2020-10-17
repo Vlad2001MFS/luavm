@@ -107,7 +107,7 @@ impl Parser {
                         result.push(expr);
                     }
                     else {
-                        self.error("Expected an expression");
+                        self.error("Expect an expression");
                     }
                 }
 
