@@ -50,58 +50,65 @@ impl Parser {
     }
 
     fn try_parse_statement(&mut self) -> Option<Statement> {
-        if let Token::SemiColon = self.stream.last_token() {
-            while let Token::SemiColon = self.stream.last_token() {
-                self.stream.next();
+        match self.stream.last_token() {
+            Token::SemiColon => {
+                while let Token::SemiColon = self.stream.last_token() {
+                    self.stream.next();
+                }
+                None
             }
+            _ => None,
         }
-        None
     }
 
     fn try_parse_return_statement(&mut self) -> Option<ReturnStatement> {
-        if let Token::Return = self.stream.last_token() {
-            self.stream.next();
-
-            let mut result = ReturnStatement {
-                expression_list: Vec::new(),
-            };
-
-            if let Some(expression_list) = self.try_parse_expression_list() {
-                result.expression_list = expression_list;
-            }
-            
-            if let Token::SemiColon = self.stream.last_token() {
+        match self.stream.last_token() {
+            Token::Return => {
                 self.stream.next();
-            }
 
-            return Some(result);
+                let mut result = ReturnStatement {
+                    expression_list: Vec::new(),
+                };
+
+                if let Some(expression_list) = self.try_parse_expression_list() {
+                    result.expression_list = expression_list;
+                }
+                
+                if let Token::SemiColon = self.stream.last_token() {
+                    self.stream.next();
+                }
+
+                Some(result)
+            }
+            _ => None,
         }
-        None
     }
 
     fn try_parse_expression_list(&mut self) -> Option<Vec<Expression>> {
-        if let Some(expr) = self.try_parse_expression() {
-            let mut result = vec![expr];
+        match self.try_parse_expression() {
+            Some(expr) => {
+                let mut result = vec![expr];
 
-            while let Token::Comma = self.stream.last_token() {
-                if let Some(expr) = self.try_parse_expression() {
-                    result.push(expr);
+                while let Token::Comma = self.stream.last_token() {
+                    if let Some(expr) = self.try_parse_expression() {
+                        result.push(expr);
+                    }
+                    else {
+                        self.error("Expected an expression");
+                    }
                 }
-                else {
-                    self.error("Expected an expression");
-                }
+
+                Some(result)
             }
-
-            return Some(result);
+            _ => None,
         }
-        None
     }
 
     fn try_parse_expression(&mut self) -> Option<Expression> {
-        if let Token::Number(number) = self.stream.last_token() {
-            return Some(Expression::Number(*number));
+        match self.stream.last_token() {
+            Token::Number(number) => Some(Expression::Number(*number)),
+            _ => None
         }
-        None
     }
 
     fn error(&self, desc: &str) {
