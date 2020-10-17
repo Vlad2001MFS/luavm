@@ -6,9 +6,12 @@ stat ::=  ‘;’
 retstat ::= return [explist] [‘;’]
 explist ::= exp {‘,’ exp}
 exp ::=  nil | false | true | Numeral | LiteralString |
-         exp binop exp | unop exp
+         prefixexp | exp binop exp | unop exp
+prefixexp ::= ‘(’ exp ‘)’
 binop ::=  ‘+’ | ‘-’ | ‘*’ | ‘/’ | ‘//’ | ‘^’ | ‘%’ |
            ‘&’ | ‘~’ | ‘|’ | ‘>>’ | ‘<<’ | ‘..’ |
+           ‘<’ | ‘<=’ | ‘>’ | ‘>=’ | ‘==’ | ‘~=’ | 
+           and | or
 unop ::= ‘-’ | not | ‘#’ | ‘~’
 
 */
@@ -121,13 +124,91 @@ impl Parser {
         }
     }
 
+    /*
+       or
+       and
+       <     >     <=    >=    ~=    ==
+    */
+
     fn try_parse_expression(&mut self) -> Option<Expression> {
+        match self.try_parse_expression_and() {
+            Some(left_expr) => {
+                match self.stream.look_token(0).cloned() {
+                    Some(Token::Or) => {
+                        self.stream.next();
+                        if let Some(right_expr) = self.try_parse_expression() {
+                            Some(Expression::BinaryOp {
+                                op: Token::Or,
+                                left_expr: Box::new(left_expr),
+                                right_expr: Box::new(right_expr),
+                            })
+                        }
+                        else {
+                            self.error_none("Expected an expression")
+                        }
+                    }
+                    _ => Some(left_expr),
+                }
+            }
+            None => None,
+        }
+    }
+
+    fn try_parse_expression_and(&mut self) -> Option<Expression> {
+        match self.try_parse_expression_cmp() {
+            Some(left_expr) => {
+                match self.stream.look_token(0).cloned() {
+                    Some(Token::And) => {
+                        self.stream.next();
+                        if let Some(right_expr) = self.try_parse_expression_and() {
+                            Some(Expression::BinaryOp {
+                                op: Token::And,
+                                left_expr: Box::new(left_expr),
+                                right_expr: Box::new(right_expr),
+                            })
+                        }
+                        else {
+                            self.error_none("Expected an expression")
+                        }
+                    }
+                    _ => Some(left_expr),
+                }
+            }
+            None => None,
+        }
+    }
+
+    fn try_parse_expression_cmp(&mut self) -> Option<Expression> {
+        match self.try_parse_expression_bit_or() {
+            Some(left_expr) => {
+                match self.stream.look_token(0).cloned() {
+                    Some(token) if [Token::LessThan, Token::GreaterThan, Token::LessEqual, Token::GreaterEqual, Token::NotEqual, Token::Equal].contains(&token) => {
+                        self.stream.next();
+                        if let Some(right_expr) = self.try_parse_expression_cmp() {
+                            Some(Expression::BinaryOp {
+                                op: token,
+                                left_expr: Box::new(left_expr),
+                                right_expr: Box::new(right_expr),
+                            })
+                        }
+                        else {
+                            self.error_none("Expected an expression")
+                        }
+                    }
+                    _ => Some(left_expr),
+                }
+            }
+            None => None,
+        }
+    }
+
+    fn try_parse_expression_bit_or(&mut self) -> Option<Expression> {
         match self.try_parse_expression_bit_xor() {
             Some(left_expr) => {
                 match self.stream.look_token(0).cloned() {
                     Some(Token::BitOr) => {
                         self.stream.next();
-                        if let Some(right_expr) = self.try_parse_expression() {
+                        if let Some(right_expr) = self.try_parse_expression_bit_or() {
                             Some(Expression::BinaryOp {
                                 op: Token::BitOr,
                                 left_expr: Box::new(left_expr),
