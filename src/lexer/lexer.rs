@@ -354,7 +354,7 @@ impl Lexer {
                     has_digit = true;
                     number.push(self.stream.last_char());
                 }
-                else if self.stream.last_char() == '.' {
+                else if self.stream.last_char() == '.' && !self.stream.look_for_str("..", 0, false, false) {
                     if has_dot {
                         self.error("Invalid hexadecimal number. More than 1 dot in a number");
                     }
@@ -414,7 +414,7 @@ impl Lexer {
                     has_digit = true;
                     number.push(self.stream.last_char());
                 }
-                else if self.stream.last_char() == '.' {
+                else if self.stream.last_char() == '.' && !self.stream.look_for_str("..", 0, false, false) {
                     if has_dot {
                         self.error("Invalid number. More than 1 dot in a number");
                     }
