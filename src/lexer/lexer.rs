@@ -2,7 +2,7 @@ use crate::lexer::{
     TextStream, Location,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Token {
     Identifier(String),
     String(String),
