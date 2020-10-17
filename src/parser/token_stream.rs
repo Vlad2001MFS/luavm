@@ -1,5 +1,7 @@
 use crate::{
-    lexer::TokenInfo,
+    lexer::{
+        TokenInfo, Token,
+    },
 };
 
 pub struct TokenStream {
@@ -15,7 +17,11 @@ impl TokenStream {
         }
     }
 
-    pub fn look(&self, offset: usize) -> Option<&TokenInfo> {
+    pub fn look_token(&self, offset: usize) -> Option<&Token> {
+        self.look_token_info(offset).map(|info| info.token())
+    }
+
+    pub fn look_token_info(&self, offset: usize) -> Option<&TokenInfo> {
         self.data.get(self.current_idx + offset - 1)
     }
 
@@ -32,8 +38,12 @@ impl TokenStream {
         }
     }
 
-    pub fn last_char(&self) -> &TokenInfo {
-        self.look(0).unwrap()
+    pub fn last_token(&self) -> &Token {
+        self.look_token(0).unwrap()
+    }
+
+    pub fn last_token_info(&self) -> &TokenInfo {
+        self.look_token_info(0).unwrap()
     }
 
     pub fn is_eof(&self) -> bool {
