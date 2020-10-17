@@ -108,7 +108,11 @@ impl Parser {
 
     fn try_parse_expression(&mut self) -> Option<Expression> {
         let result = match self.stream.look_token(0) {
+            Some(Token::Nil) => Some(Expression::Nil),
+            Some(Token::True) => Some(Expression::Bool(true)),
+            Some(Token::False) => Some(Expression::Bool(false)),
             Some(Token::Number(number)) => Some(Expression::Number(*number)),
+            Some(Token::String(string)) => Some(Expression::String(string.clone())),
             _ => None
         };
 

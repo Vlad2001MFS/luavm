@@ -34,5 +34,8 @@ pub struct ReturnStatement {
 
 #[derive(Debug)]
 pub enum Expression {
+    Nil,
+    Bool(bool),
     Number(f64),
+    String(String),
 }
