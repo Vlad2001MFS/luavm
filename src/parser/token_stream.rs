@@ -38,16 +38,6 @@ impl TokenStream {
         }
     }
 
-    #[track_caller]
-    pub fn last_token(&self) -> &Token {
-        self.look_token(0).unwrap()
-    }
-
-    #[track_caller]
-    pub fn last_token_info(&self) -> &TokenInfo {
-        self.look_token_info(0).unwrap()
-    }
-
     pub fn is_eof(&self) -> bool {
         self.current_idx >= self.data.len()
     }

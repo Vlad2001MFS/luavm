@@ -50,9 +50,9 @@ impl Parser {
     }
 
     fn try_parse_statement(&mut self) -> Option<Statement> {
-        match self.stream.last_token() {
-            Token::SemiColon => {
-                while let Token::SemiColon = self.stream.last_token() {
+        match self.stream.look_token(0) {
+            Some(Token::SemiColon) => {
+                while let Some(Token::SemiColon) = self.stream.look_token(0) {
                     self.stream.next();
                 }
                 None
@@ -62,8 +62,8 @@ impl Parser {
     }
 
     fn try_parse_return_statement(&mut self) -> Option<ReturnStatement> {
-        match self.stream.last_token() {
-            Token::Return => {
+        match self.stream.look_token(0) {
+            Some(Token::Return) => {
                 self.stream.next();
 
                 let mut result = ReturnStatement {
@@ -74,7 +74,7 @@ impl Parser {
                     result.expression_list = expression_list;
                 }
                 
-                if let Token::SemiColon = self.stream.last_token() {
+                if let Some(Token::SemiColon) = self.stream.look_token(0) {
                     self.stream.next();
                 }
 
@@ -89,7 +89,9 @@ impl Parser {
             Some(expr) => {
                 let mut result = vec![expr];
 
-                while let Token::Comma = self.stream.last_token() {
+                while let Some(Token::Comma) = self.stream.look_token(0) {
+                    self.stream.next();
+
                     if let Some(expr) = self.try_parse_expression() {
                         result.push(expr);
                     }
@@ -105,17 +107,27 @@ impl Parser {
     }
 
     fn try_parse_expression(&mut self) -> Option<Expression> {
-        match self.stream.last_token() {
-            Token::Number(number) => Some(Expression::Number(*number)),
+        let result = match self.stream.look_token(0) {
+            Some(Token::Number(number)) => Some(Expression::Number(*number)),
             _ => None
+        };
+
+        if result.is_some() {
+            self.stream.next();
         }
+
+        result
     }
 
     fn error(&self, desc: &str) {
-        let token_info = self.stream.last_token_info();
-        let token_begin_loc = token_info.begin_location();
-        let token_end_loc = token_info.end_location();
-        let pointer = " ".repeat(token_begin_loc.column() - 1) + &"^".repeat(token_end_loc.column() - token_begin_loc.column());
-        panic!(format!("{}:{}: Parser error: {}\n{}\n{}", token_begin_loc.source_name(), token_begin_loc, desc, token_begin_loc.content(), pointer))
+        match self.stream.look_token_info(0) {
+            Some(token_info) => {
+                let token_begin_loc = token_info.begin_location();
+                let token_end_loc = token_info.end_location();
+                let pointer = " ".repeat(token_begin_loc.column() - 1) + &"^".repeat(token_end_loc.column() - token_begin_loc.column());
+                panic!(format!("{}:{}: Parser error: {}\n{}\n{}", token_begin_loc.source_name(), token_begin_loc, desc, token_begin_loc.content(), pointer))
+            }
+            None => panic!("Parser error: Unexpected end of tokens stream")
+        }
     }
 }
