@@ -5,7 +5,9 @@ block ::= {stat} [retstat]
 stat ::=  ‘;’
 retstat ::= return [explist] [‘;’]
 explist ::= exp {‘,’ exp}
-exp ::=  nil | false | true | Numeral | LiteralString | exp binop exp | unop exp
+exp ::=  nil | false | true | Numeral | LiteralString |
+         exp binop exp | unop exp
+binop ::=  ‘+’ | ‘-’ | ‘*’ | ‘/’ | ‘//’ | ‘^’ | ‘%’
 unop ::= ‘-’ | not | ‘#’ | ‘~’
 
 */
