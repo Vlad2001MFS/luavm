@@ -7,7 +7,8 @@ retstat ::= return [explist] [‘;’]
 explist ::= exp {‘,’ exp}
 exp ::=  nil | false | true | Numeral | LiteralString |
          exp binop exp | unop exp
-binop ::=  ‘+’ | ‘-’ | ‘*’ | ‘/’ | ‘//’ | ‘^’ | ‘%’
+binop ::=  ‘+’ | ‘-’ | ‘*’ | ‘/’ | ‘//’ | ‘^’ | ‘%’ |
+           ‘&’ | ‘~’ | ‘|’ | ‘>>’ | ‘<<’ | ‘..’ |
 unop ::= ‘-’ | not | ‘#’ | ‘~’
 
 */
@@ -121,14 +122,134 @@ impl Parser {
     }
 
     fn try_parse_expression(&mut self) -> Option<Expression> {
-        match self.try_parse_expression_term() {
+        match self.try_parse_expression_bit_xor() {
+            Some(left_expr) => {
+                match self.stream.look_token(0).cloned() {
+                    Some(Token::BitOr) => {
+                        self.stream.next();
+                        if let Some(right_expr) = self.try_parse_expression() {
+                            Some(Expression::BinaryOp {
+                                op: Token::BitOr,
+                                left_expr: Box::new(left_expr),
+                                right_expr: Box::new(right_expr),
+                            })
+                        }
+                        else {
+                            self.error_none("Expected an expression")
+                        }
+                    }
+                    _ => Some(left_expr),
+                }
+            }
+            None => None,
+        }
+    }
+
+    fn try_parse_expression_bit_xor(&mut self) -> Option<Expression> {
+        match self.try_parse_expression_bit_and() {
+            Some(left_expr) => {
+                match self.stream.look_token(0).cloned() {
+                    Some(Token::BitNotXor) => {
+                        self.stream.next();
+                        if let Some(right_expr) = self.try_parse_expression_bit_xor() {
+                            Some(Expression::BinaryOp {
+                                op: Token::BitNotXor,
+                                left_expr: Box::new(left_expr),
+                                right_expr: Box::new(right_expr),
+                            })
+                        }
+                        else {
+                            self.error_none("Expected an expression")
+                        }
+                    }
+                    _ => Some(left_expr),
+                }
+            }
+            None => None,
+        }
+    }
+
+    fn try_parse_expression_bit_and(&mut self) -> Option<Expression> {
+        match self.try_parse_expression_shift() {
+            Some(left_expr) => {
+                match self.stream.look_token(0).cloned() {
+                    Some(Token::BitAnd) => {
+                        self.stream.next();
+                        if let Some(right_expr) = self.try_parse_expression_bit_and() {
+                            Some(Expression::BinaryOp {
+                                op: Token::BitAnd,
+                                left_expr: Box::new(left_expr),
+                                right_expr: Box::new(right_expr),
+                            })
+                        }
+                        else {
+                            self.error_none("Expected an expression")
+                        }
+                    }
+                    _ => Some(left_expr),
+                }
+            }
+            None => None,
+        }
+    }
+
+    fn try_parse_expression_shift(&mut self) -> Option<Expression> {
+        match self.try_parse_expression_concat() {
+            Some(left_expr) => {
+                match self.stream.look_token(0).cloned() {
+                    Some(token) if [Token::ShiftLeft, Token::ShiftRight].contains(&token) => {
+                        self.stream.next();
+                        if let Some(right_expr) = self.try_parse_expression_shift() {
+                            Some(Expression::BinaryOp {
+                                op: token,
+                                left_expr: Box::new(left_expr),
+                                right_expr: Box::new(right_expr),
+                            })
+                        }
+                        else {
+                            self.error_none("Expected an expression")
+                        }
+                    }
+                    _ => Some(left_expr),
+                }
+            }
+            None => None,
+        }
+    }
+
+    fn try_parse_expression_concat(&mut self) -> Option<Expression> {
+        match self.try_parse_expression_arithm() {
+            Some(left_expr) => {
+                match self.stream.look_token(0) {
+                    Some(Token::Dots2) => {
+                        self.stream.next();
+                        if let Some(right_expr) = self.try_parse_expression_concat() {
+                            Some(Expression::BinaryOp {
+                                op: Token::Dots2,
+                                left_expr: Box::new(left_expr),
+                                right_expr: Box::new(right_expr),
+                            })
+                        }
+                        else {
+                            self.error_none("Expected an expression")
+                        }
+                    }
+                    _ => Some(left_expr),
+                }
+            }
+            None => None,
+        }
+    }
+
+    fn try_parse_expression_arithm(&mut self) -> Option<Expression> {
+        match self.try_parse_expression_arithm_term() {
             Some(left_expr) => {
                 match self.stream.look_token(0).cloned() {
                     Some(token) if [Token::Add, Token::Sub].contains(&token) => {
                         self.stream.next();
-                        match self.try_parse_expression() {
+                        match self.try_parse_expression_arithm() {
                             Some(right_expr) => Some(Expression::BinaryOp {
-                                op: token.clone(),
+                                op: token,
                                 left_expr: Box::new(left_expr),
                                 right_expr: Box::new(right_expr),
                             }),
@@ -142,15 +263,15 @@ impl Parser {
         }
     }
 
-    fn try_parse_expression_term(&mut self) -> Option<Expression> {
-        match self.try_parse_expression_factor() {
+    fn try_parse_expression_arithm_term(&mut self) -> Option<Expression> {
+        match self.try_parse_expression_arithm_factor() {
             Some(left_expr) => {
                 match self.stream.look_token(0).cloned() {
                     Some(token) if [Token::Mul, Token::Div, Token::IDiv, Token::Mod].contains(&token) => {
                         self.stream.next();
-                        match self.try_parse_expression_term() {
+                        match self.try_parse_expression_arithm_term() {
                             Some(right_expr) => Some(Expression::BinaryOp {
-                                op: token.clone(),
+                                op: token,
                                 left_expr: Box::new(left_expr),
                                 right_expr: Box::new(right_expr),
                             }),
@@ -165,7 +286,7 @@ impl Parser {
     }
 
     
-    fn try_parse_expression_factor(&mut self) -> Option<Expression> {
+    fn try_parse_expression_arithm_factor(&mut self) -> Option<Expression> {
         let factor = match self.stream.look_token(0).cloned() {
             Some(Token::Nil) => {
                 self.stream.next();
@@ -189,7 +310,7 @@ impl Parser {
             }
             Some(token) if [Token::Not, Token::Len, Token::Sub, Token::BitNotXor].contains(&token) => {
                 self.stream.next();
-                match self.try_parse_expression_factor() {
+                match self.try_parse_expression_arithm_factor() {
                     Some(expr) => Some(Expression::UnaryOp {
                         op: token,
                         expr: Box::new(expr),
