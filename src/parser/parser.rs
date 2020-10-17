@@ -1,3 +1,14 @@
+/* The list of implemented the Lua grammar at the moment
+
+chunk ::= block
+block ::= {stat} [retstat]
+stat ::=  ‘;’
+retstat ::= return [explist] [‘;’]
+explist ::= exp {‘,’ exp}
+exp ::=  nil | false | true | Numeral | LiteralString
+
+*/
+
 use crate::{
     lexer::{
         TokenInfo, Token,
