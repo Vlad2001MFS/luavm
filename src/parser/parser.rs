@@ -5,7 +5,8 @@ block ::= {stat} [retstat]
 stat ::=  ‘;’
 retstat ::= return [explist] [‘;’]
 explist ::= exp {‘,’ exp}
-exp ::=  nil | false | true | Numeral | LiteralString
+exp ::=  nil | false | true | Numeral | LiteralString | unop exp
+unop ::= ‘-’ | not | ‘#’ | ‘~’
 
 */
 
@@ -118,23 +119,73 @@ impl Parser {
     }
 
     fn try_parse_expression(&mut self) -> Option<Expression> {
-        let result = match self.stream.look_token(0) {
-            Some(Token::Nil) => Some(Expression::Nil),
-            Some(Token::True) => Some(Expression::Bool(true)),
-            Some(Token::False) => Some(Expression::Bool(false)),
-            Some(Token::Number(number)) => Some(Expression::Number(*number)),
-            Some(Token::String(string)) => Some(Expression::String(string.clone())),
+        match self.stream.look_token(0).cloned() {
+            Some(Token::Nil) => {
+                self.stream.next();
+                Some(Expression::Nil)
+            }
+            Some(Token::True) => {
+                self.stream.next();
+                Some(Expression::Bool(true))
+            }
+            Some(Token::False) => {
+                self.stream.next();
+                Some(Expression::Bool(false))
+            }
+            Some(Token::Number(number)) => {
+                self.stream.next();
+                Some(Expression::Number(number))
+            }
+            Some(Token::String(string)) => {
+                self.stream.next();
+                Some(Expression::String(string.clone()))
+            }
+            Some(Token::Sub) => {
+                self.stream.next();
+                match self.try_parse_expression() {
+                    Some(expr) => Some(Expression::UnaryOp {
+                        op: Token::Sub,
+                        expr: Box::new(expr),
+                    }),
+                    None => self.error_none("Expect an expression"),
+                }
+            }
+            Some(Token::Not) => {
+                self.stream.next();
+                match self.try_parse_expression() {
+                    Some(expr) => Some(Expression::UnaryOp {
+                        op: Token::Not,
+                        expr: Box::new(expr),
+                    }),
+                    None => self.error_none("Expect an expression"),
+                }
+            }
+            Some(Token::Len) => {
+                self.stream.next();
+                match self.try_parse_expression() {
+                    Some(expr) => Some(Expression::UnaryOp {
+                        op: Token::Len,
+                        expr: Box::new(expr),
+                    }),
+                    None => self.error_none("Expect an expression"),
+                }
+            }
+            Some(Token::BitNot) => {
+                self.stream.next();
+                match self.try_parse_expression() {
+                    Some(expr) => Some(Expression::UnaryOp {
+                        op: Token::BitNot,
+                        expr: Box::new(expr),
+                    }),
+                    None => self.error_none("Expect an expression"),
+                }
+            }
             _ => None
-        };
-
-        if result.is_some() {
-            self.stream.next();
         }
-
-        result
     }
 
-    fn error(&self, desc: &str) {
+    #[track_caller]
+    fn error_none<T>(&self, desc: &str) -> Option<T> {
         match self.stream.look_token_info(0) {
             Some(token_info) => {
                 let token_begin_loc = token_info.begin_location();
@@ -144,5 +195,10 @@ impl Parser {
             }
             None => panic!("Parser error: Unexpected end of tokens stream")
         }
+    }
+
+    #[track_caller]
+    fn error(&self, desc: &str) {
+        self.error_none::<()>(desc);
     }
 }

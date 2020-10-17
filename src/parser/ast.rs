@@ -1,3 +1,5 @@
+use crate::lexer::Token;
+
 #[derive(Debug)]
 pub struct Chunk {
     pub block: Block,
@@ -38,4 +40,8 @@ pub enum Expression {
     Bool(bool),
     Number(f64),
     String(String),
+    UnaryOp {
+        op: Token,
+        expr: Box<Expression>,
+    },
 }
