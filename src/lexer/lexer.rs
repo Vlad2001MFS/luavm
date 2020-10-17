@@ -2,27 +2,11 @@ use crate::lexer::{
     TextStream, Location,
 };
 
-// Order is important
-const SYMBOLIC_TOKENS: [&str; 33] = [
-    "...",
-
-    "<<",   ">>",   "//",
-    "==",   "~=",   "<=",   ">=", 
-    "::",   "..",
-
-    "+",    "-",    "*",    "/",    "%",    "^",   "#",
-    "&",    "~",    "|",    
-    "<",    ">",   "=",
-    "(",    ")",    "{",    "}",    "[",    "]",
-    ";",    ":",    ",",   ".",
-];
-
 #[derive(Debug)]
 pub enum Token {
     Identifier(String),
     String(String),
     Number(f64),
-    Symbol(String),
 
     // Keywords
     Function,
@@ -52,6 +36,40 @@ pub enum Token {
     Nil,
     True,
     False,
+ 
+    Add,
+    Sub,
+    Mul,
+    Div,
+    IDiv,
+    Pow,
+    Mod,
+    Len,
+    BitNot,
+    BitAnd,
+    BitOr,
+    ShiftRight,
+    ShiftLeft,
+    Dots2,
+    Dots3,
+    Assign,
+    LessThan,
+    LessEqual,
+    GreaterThan,
+    GreaterEqual,
+    Equal,
+    NotEqual,
+    Dot,
+    SemiColon,
+    Colon,
+    DoubleColon,
+    Comma,
+    LeftParen,
+    RightParen,
+    LeftBracket,
+    RightBracket,
+    LeftBrace,
+    RightBrace,
 }
 
 pub struct TokenInfo {
@@ -431,8 +449,136 @@ impl Lexer {
     }
 
     fn try_process_symbolic_tokens(&mut self) -> bool {
-        if let Some(token) = SYMBOLIC_TOKENS.iter().find(|a| self.stream.look_for_str(&a, 0, false, true)) {
-            self.add_token(Token::Symbol(token.to_string()));
+        if self.stream.look_for_str("...", 0, false, true) {
+            self.add_token(Token::Dots3);
+            return true;
+        }
+        else if self.stream.look_for_str("<<", 0, false, true) {
+            self.add_token(Token::ShiftLeft);
+            return true;
+        }
+        else if self.stream.look_for_str(">>", 0, false, true) {
+            self.add_token(Token::ShiftRight);
+            return true;
+        }
+        else if self.stream.look_for_str("//", 0, false, true) {
+            self.add_token(Token::IDiv);
+            return true;
+        }
+        else if self.stream.look_for_str("==", 0, false, true) {
+            self.add_token(Token::Equal);
+            return true;
+        }
+        else if self.stream.look_for_str("~=", 0, false, true) {
+            self.add_token(Token::NotEqual);
+            return true;
+        }
+        else if self.stream.look_for_str("<=", 0, false, true) {
+            self.add_token(Token::LessEqual);
+            return true;
+        }
+        else if self.stream.look_for_str(">=", 0, false, true) {
+            self.add_token(Token::GreaterEqual);
+            return true;
+        }
+        else if self.stream.look_for_str("::", 0, false, true) {
+            self.add_token(Token::DoubleColon);
+            return true;
+        }
+        else if self.stream.look_for_str("..", 0, false, true) {
+            self.add_token(Token::Dots2);
+            return true;
+        }
+        else if self.stream.look_for_str("+", 0, false, true) {
+            self.add_token(Token::Add);
+            return true;
+        }
+        else if self.stream.look_for_str("-", 0, false, true) {
+            self.add_token(Token::Sub);
+            return true;
+        }
+        else if self.stream.look_for_str("*", 0, false, true) {
+            self.add_token(Token::Mul);
+            return true;
+        }
+        else if self.stream.look_for_str("/", 0, false, true) {
+            self.add_token(Token::Div);
+            return true;
+        }
+        else if self.stream.look_for_str("%", 0, false, true) {
+            self.add_token(Token::Mod);
+            return true;
+        }
+        else if self.stream.look_for_str("^", 0, false, true) {
+            self.add_token(Token::Pow);
+            return true;
+        }
+        else if self.stream.look_for_str("#", 0, false, true) {
+            self.add_token(Token::Len);
+            return true;
+        }
+        else if self.stream.look_for_str("&", 0, false, true) {
+            self.add_token(Token::BitAnd);
+            return true;
+        }
+        else if self.stream.look_for_str("~", 0, false, true) {
+            self.add_token(Token::BitNot);
+            return true;
+        }
+        else if self.stream.look_for_str("|", 0, false, true) {
+            self.add_token(Token::BitOr);
+            return true;
+        }
+        else if self.stream.look_for_str("<", 0, false, true) {
+            self.add_token(Token::LessThan);
+            return true;
+        }
+        else if self.stream.look_for_str(">", 0, false, true) {
+            self.add_token(Token::GreaterThan);
+            return true;
+        }
+        else if self.stream.look_for_str("=", 0, false, true) {
+            self.add_token(Token::Assign);
+            return true;
+        }
+        else if self.stream.look_for_str("(", 0, false, true) {
+            self.add_token(Token::LeftParen);
+            return true;
+        }
+        else if self.stream.look_for_str(")", 0, false, true) {
+            self.add_token(Token::RightParen);
+            return true;
+        }
+        else if self.stream.look_for_str("{", 0, false, true) {
+            self.add_token(Token::LeftBrace);
+            return true;
+        }
+        else if self.stream.look_for_str("}", 0, false, true) {
+            self.add_token(Token::RightBrace);
+            return true;
+        }
+        else if self.stream.look_for_str("[", 0, false, true) {
+            self.add_token(Token::LeftBracket);
+            return true;
+        }
+        else if self.stream.look_for_str("]", 0, false, true) {
+            self.add_token(Token::RightBracket);
+            return true;
+        }
+        else if self.stream.look_for_str(";", 0, false, true) {
+            self.add_token(Token::SemiColon);
+            return true;
+        }
+        else if self.stream.look_for_str(":", 0, false, true) {
+            self.add_token(Token::Colon);
+            return true;
+        }
+        else if self.stream.look_for_str(",", 0, false, true) {
+            self.add_token(Token::Comma);
+            return true;
+        }
+        else if self.stream.look_for_str(".", 0, false, true) {
+            self.add_token(Token::Dot);
             return true;
         }
         false
