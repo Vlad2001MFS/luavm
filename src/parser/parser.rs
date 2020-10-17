@@ -5,7 +5,7 @@ block ::= {stat} [retstat]
 stat ::=  ‘;’
 retstat ::= return [explist] [‘;’]
 explist ::= exp {‘,’ exp}
-exp ::=  nil | false | true | Numeral | LiteralString | unop exp
+exp ::=  nil | false | true | Numeral | LiteralString | exp binop exp | unop exp
 unop ::= ‘-’ | not | ‘#’ | ‘~’
 
 */
@@ -108,7 +108,7 @@ impl Parser {
                         result.push(expr);
                     }
                     else {
-                        self.error("Expect an expression");
+                        self.error("Expected an expression");
                     }
                 }
 
@@ -119,7 +119,52 @@ impl Parser {
     }
 
     fn try_parse_expression(&mut self) -> Option<Expression> {
-        match self.stream.look_token(0).cloned() {
+        match self.try_parse_expression_term() {
+            Some(left_expr) => {
+                match self.stream.look_token(0).cloned() {
+                    Some(token) if [Token::Add, Token::Sub].contains(&token) => {
+                        self.stream.next();
+                        match self.try_parse_expression() {
+                            Some(right_expr) => Some(Expression::BinaryOp {
+                                op: token.clone(),
+                                left_expr: Box::new(left_expr),
+                                right_expr: Box::new(right_expr),
+                            }),
+                            None => self.error_none("Expected a right expression"),
+                        }
+                    }
+                    _ => Some(left_expr),
+                }
+            }
+            _ => None,
+        }
+    }
+
+    fn try_parse_expression_term(&mut self) -> Option<Expression> {
+        match self.try_parse_expression_factor() {
+            Some(left_expr) => {
+                match self.stream.look_token(0).cloned() {
+                    Some(token) if [Token::Mul, Token::Div, Token::IDiv, Token::Mod].contains(&token) => {
+                        self.stream.next();
+                        match self.try_parse_expression_term() {
+                            Some(right_expr) => Some(Expression::BinaryOp {
+                                op: token.clone(),
+                                left_expr: Box::new(left_expr),
+                                right_expr: Box::new(right_expr),
+                            }),
+                            None => self.error_none("Expected a right term"),
+                        }
+                    }
+                    _ => Some(left_expr),
+                }
+            }
+            _ => None,
+        }
+    }
+
+    
+    fn try_parse_expression_factor(&mut self) -> Option<Expression> {
+        let factor = match self.stream.look_token(0).cloned() {
             Some(Token::Nil) => {
                 self.stream.next();
                 Some(Expression::Nil)
@@ -140,47 +185,54 @@ impl Parser {
                 self.stream.next();
                 Some(Expression::String(string.clone()))
             }
-            Some(Token::Sub) => {
+            Some(token) if [Token::Not, Token::Len, Token::Sub, Token::BitNotXor].contains(&token) => {
                 self.stream.next();
-                match self.try_parse_expression() {
+                match self.try_parse_expression_factor() {
                     Some(expr) => Some(Expression::UnaryOp {
-                        op: Token::Sub,
+                        op: token,
                         expr: Box::new(expr),
                     }),
-                    None => self.error_none("Expect an expression"),
+                    None => self.error_none("Expected a factor"),
                 }
             }
-            Some(Token::Not) => {
+            Some(Token::LeftParen) => {
                 self.stream.next();
-                match self.try_parse_expression() {
-                    Some(expr) => Some(Expression::UnaryOp {
-                        op: Token::Not,
-                        expr: Box::new(expr),
-                    }),
-                    None => self.error_none("Expect an expression"),
+                if let Some(expr) = self.try_parse_expression() {
+                    if let Some(Token::RightParen) = self.stream.look_token(0) {
+                        self.stream.next();
+                        Some(expr)
+                    }
+                    else {
+                        self.error_none("Expected ')'")
+                    }
+                }
+                else {
+                    self.error_none("Expected an expression")
                 }
             }
-            Some(Token::Len) => {
-                self.stream.next();
-                match self.try_parse_expression() {
-                    Some(expr) => Some(Expression::UnaryOp {
-                        op: Token::Len,
-                        expr: Box::new(expr),
-                    }),
-                    None => self.error_none("Expect an expression"),
+            _ => None,
+        };
+
+        match factor {
+            Some(factor) => {
+                match self.stream.look_token(0) {
+                    Some(Token::Pow) => {
+                        self.stream.next();
+                        match self.try_parse_expression() {
+                            Some(pow) => {
+                                Some(Expression::BinaryOp {
+                                    op: Token::Pow,
+                                    left_expr: Box::new(factor),
+                                    right_expr: Box::new(pow),
+                                })
+                            }
+                            None => self.error_none("Expected an expression")
+                        }
+                    }
+                    _ => Some(factor),
                 }
             }
-            Some(Token::BitNot) => {
-                self.stream.next();
-                match self.try_parse_expression() {
-                    Some(expr) => Some(Expression::UnaryOp {
-                        op: Token::BitNot,
-                        expr: Box::new(expr),
-                    }),
-                    None => self.error_none("Expect an expression"),
-                }
-            }
-            _ => None
+            None => None,
         }
     }
 
@@ -193,7 +245,7 @@ impl Parser {
                 let pointer = " ".repeat(token_begin_loc.column() - 1) + &"^".repeat(token_end_loc.column() - token_begin_loc.column());
                 panic!(format!("{}:{}: Parser error: {}\n{}\n{}", token_begin_loc.source_name(), token_begin_loc, desc, token_begin_loc.content(), pointer))
             }
-            None => panic!("Parser error: Unexpected end of tokens stream")
+            None => panic!(format!("Parser error: {}", desc))
         }
     }
 
