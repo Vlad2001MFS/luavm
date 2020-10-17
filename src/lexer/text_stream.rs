@@ -127,6 +127,7 @@ impl TextStream {
         }
     }
 
+    #[track_caller]
     pub fn last_char(&self) -> char {
         self.look(0).unwrap()
     }
