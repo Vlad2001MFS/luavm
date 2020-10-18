@@ -39,6 +39,6 @@ impl TokenStream {
     }
 
     pub fn is_eof(&self) -> bool {
-        self.current_idx >= self.data.len()
+        self.current_idx - 1 >= self.data.len()
     }
 }
