@@ -11,7 +11,9 @@ namelist            ::= Name {‘,’ Name}                                     
 explist             ::= exp {‘,’ exp}                                                               $$$
 exp                 ::= nil | false | true | Numeral | LiteralString | ‘...’ | functiondef |
                         prefixexp | exp binop exp | unop exp
-prefixexp           ::= var | ‘(’ exp ‘)’
+prefixexp           ::= var | functioncall | ‘(’ exp ‘)’                                            $$$
+functioncall        ::= prefixexp args | prefixexp ‘:’ Name args                                    $$$
+args                ::= ‘(’ [explist] ‘)’ | LiteralString
 functiondef         ::= function funcbody                                                           $$$
 funcbody            ::= ‘(’ [parlist] ‘)’ block end                                                 $$$
 parlist             ::= namelist [‘,’ ‘...’] | ‘...’                                                $$$
@@ -32,7 +34,7 @@ use crate::{
         ast::{
             Chunk, Block,
             Statement, ReturnStatement,
-            Expression, FunctionBody, Suffix,
+            Expression, FunctionBody, Suffix, CallArgs,
         },
     },
 };
@@ -492,7 +494,7 @@ impl Parser {
     fn try_parse_suffixes(&mut self ) -> Option<Vec<Suffix>> {
         let mut suffixes = Vec::new();
         loop {
-            match self.stream.look_token(0) {
+            match self.stream.look_token(0).cloned() {
                 Some(Token::Dot) => {
                     self.stream.next();
                     match self.stream.look_token(0).cloned() {
@@ -517,13 +519,57 @@ impl Parser {
                         None => self.error("Expected a suffixed expression"),
                     }
                 }
-                _ => break,
+                _ => {
+                    if let Some(args) = self.try_parse_call_arguments() {
+                        suffixes.push(Suffix::CallFree(args))
+                    }
+                    else if let Some(Token::Colon) = self.stream.look_token(0) {
+                        self.stream.next();
+                        match self.stream.look_token(0) {
+                            Some(Token::Identifier(_)) => {
+                                self.stream.next();
+                                match self.try_parse_call_arguments() {
+                                    Some(args) => suffixes.push(Suffix::CallMethod(args)),
+                                    None => self.error("Expected arguments or ()"),
+                                }
+                            },
+                            _ => self.error("Expected an identifier"),
+                        };
+                    }
+                    else {
+                        break;
+                    }
+                },
             }
         }
 
         match suffixes.is_empty() {
             true => None,
             false => Some(suffixes),
+        }
+    }
+
+    fn try_parse_call_arguments(&mut self) -> Option<CallArgs> {
+        match self.stream.look_token(0) {
+            Some(Token::LeftParen) => {
+                self.stream.next();
+
+                let expr_list = self.try_parse_expression_list();
+
+                match self.stream.look_token(0) {
+                    Some(Token::RightParen) => self.stream.next(),
+                    _ => self.error_bool("Expected ')'"),
+                };
+
+                match expr_list {
+                    Some(expr_list) => Some(CallArgs::ExpressionList(expr_list)),
+                    None => Some(CallArgs::ExpressionList(Vec::new())),
+                }
+            }
+            Some(Token::String(string)) => {
+                Some(CallArgs::String(string.clone()))
+            }
+            _ => None,
         }
     }
 

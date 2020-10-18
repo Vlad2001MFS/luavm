@@ -10,5 +10,5 @@ return nil, true, false, 44, 44.5, 'quote', "double quote",
        function(a, b, ...) return 1 < 2 and 3 > 2 or 1 ~= 2, ... end,
        (1 + 2*3),
        abc,
-       (table)[idx + 1][i].obj.field,
-       obj.field
+       (table)[get_idx() + 1][i].obj.field,
+       get().obj.field:func(1, 2, "string", false)

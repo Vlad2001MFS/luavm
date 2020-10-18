@@ -68,4 +68,12 @@ pub struct FunctionBody {
 #[derive(Debug)]
 pub enum Suffix {
     Index(Box<Expression>),
+    CallFree(CallArgs),
+    CallMethod(CallArgs),
+}
+
+#[derive(Debug)]
+pub enum CallArgs {
+    ExpressionList(Vec<Expression>),
+    String(String),
 }
