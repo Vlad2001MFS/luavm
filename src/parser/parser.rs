@@ -1,18 +1,20 @@
 /* The list of implemented the Lua grammar at the moment
 
-chunk ::= block
-block ::= {stat} [retstat]
-stat ::=  ‘;’
-retstat ::= return [explist] [‘;’]
-explist ::= exp {‘,’ exp}
-exp ::=  nil | false | true | Numeral | LiteralString |
-         prefixexp | exp binop exp | unop exp
+$$$ - fully implemented relational to original Lua grammar
+
+chunk     ::= block                                                     $$$
+block     ::= {stat} [retstat]                                          $$$
+stat      ::= ‘;’
+retstat   ::= return [explist] [‘;’]                                    $$$
+explist   ::= exp {‘,’ exp}                                             $$$
+exp       ::= nil | false | true | Numeral | LiteralString |
+              prefixexp | exp binop exp | unop exp
 prefixexp ::= ‘(’ exp ‘)’
-binop ::=  ‘+’ | ‘-’ | ‘*’ | ‘/’ | ‘//’ | ‘^’ | ‘%’ |
-           ‘&’ | ‘~’ | ‘|’ | ‘>>’ | ‘<<’ | ‘..’ |
-           ‘<’ | ‘<=’ | ‘>’ | ‘>=’ | ‘==’ | ‘~=’ | 
-           and | or
-unop ::= ‘-’ | not | ‘#’ | ‘~’
+binop     ::= ‘+’ | ‘-’ | ‘*’ | ‘/’ | ‘//’ | ‘^’ | ‘%’ |                $$$
+              ‘&’ | ‘~’ | ‘|’ | ‘>>’ | ‘<<’ | ‘..’ |                    $$$
+              ‘<’ | ‘<=’ | ‘>’ | ‘>=’ | ‘==’ | ‘~=’ |                   $$$
+              and | or                                                  $$$
+unop      ::= ‘-’ | not | ‘#’ | ‘~’                                     $$$
 
 */
 
