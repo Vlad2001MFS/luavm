@@ -9,14 +9,18 @@ retstat             ::= return [explist] [‘;’]                              
 var                 ::= Name | prefixexp ‘[’ exp ‘]’ | prefixexp ‘.’ Name                           $$$
 namelist            ::= Name {‘,’ Name}                                                             $$$
 explist             ::= exp {‘,’ exp}                                                               $$$
-exp                 ::= nil | false | true | Numeral | LiteralString | ‘...’ | functiondef |
-                        prefixexp | exp binop exp | unop exp
+exp                 ::= nil | false | true | Numeral | LiteralString | ‘...’ | functiondef |        $$$
+                        prefixexp | tableconstructor | exp binop exp | unop exp                     $$$
 prefixexp           ::= var | functioncall | ‘(’ exp ‘)’                                            $$$
 functioncall        ::= prefixexp args | prefixexp ‘:’ Name args                                    $$$
-args                ::= ‘(’ [explist] ‘)’ | LiteralString
+args                ::= ‘(’ [explist] ‘)’ | tableconstructor | LiteralString                        $$$
 functiondef         ::= function funcbody                                                           $$$
 funcbody            ::= ‘(’ [parlist] ‘)’ block end                                                 $$$
 parlist             ::= namelist [‘,’ ‘...’] | ‘...’                                                $$$
+tableconstructor    ::= ‘{’ [fieldlist] ‘}’                                                         $$$
+fieldlist           ::= field {fieldsep field} [fieldsep]                                           $$$
+field               ::= ‘[’ exp ‘]’ ‘=’ exp | Name ‘=’ exp | exp                                    $$$
+fieldsep            ::= ‘,’ | ‘;’                                                                   $$$
 binop               ::= ‘+’ | ‘-’ | ‘*’ | ‘/’ | ‘//’ | ‘^’ | ‘%’ |                                  $$$
                         ‘&’ | ‘~’ | ‘|’ | ‘>>’ | ‘<<’ | ‘..’ |                                      $$$
                         ‘<’ | ‘<=’ | ‘>’ | ‘>=’ | ‘==’ | ‘~=’ |                                     $$$
@@ -34,7 +38,7 @@ use crate::{
         ast::{
             Chunk, Block,
             Statement, ReturnStatement,
-            Expression, FunctionBody, Suffix, CallArgs,
+            Expression, FunctionBody, Suffix, CallArgs, TableField,
         },
     },
 };
@@ -428,6 +432,12 @@ impl Parser {
                     None => self.error_none("Expected a factor"),
                 }
             }
+            Some(Token::LeftBrace) => {
+                match self.try_parse_table_constructor() {
+                    Some(table_constructor) => Some(table_constructor),
+                    None => self.error_none("Expected a table constructor"),
+                }
+            }
             _ => self.try_parse_suffixed_expression(),
         };
 
@@ -566,8 +576,99 @@ impl Parser {
                     None => Some(CallArgs::ExpressionList(Vec::new())),
                 }
             }
+            Some(Token::LeftBrace) => {
+                match self.try_parse_table_constructor() {
+                    Some(table_constructor) => Some(CallArgs::Table(Box::new(table_constructor))),
+                    None => self.error_none("Expected a table constructor"),
+                }
+            }
             Some(Token::String(string)) => {
                 Some(CallArgs::String(string.clone()))
+            }
+            _ => None,
+        }
+    }
+
+    fn try_parse_table_constructor(&mut self) -> Option<Expression> {
+        match self.stream.look_token(0) {
+            Some(Token::LeftBrace) => {
+                self.stream.next();
+
+                let mut fields = Vec::new();
+                loop {
+                    if let Some(Token::LeftBracket) = self.stream.look_token(0) {
+                        self.stream.next();
+
+                        match self.try_parse_expression() {
+                            Some(key_expr) => {
+                                match self.stream.look_token(0) {
+                                    Some(Token::RightBracket) => {
+                                        self.stream.next();
+
+                                        match self.stream.look_token(0) {
+                                            Some(Token::Assign) => {
+                                                self.stream.next();
+                                                
+                                                match self.try_parse_expression() {
+                                                    Some(value_expr) => fields.push(TableField {
+                                                        key: Some(key_expr),
+                                                        value: value_expr,
+                                                    }),
+                                                    None => self.error("Expected an expression"),
+                                                }
+                                            },
+                                            _ => self.error("Expected '='"),
+                                        };
+                                    },
+                                    _ => self.error("Expected ']'"),
+                                };
+                            },
+                            None => self.error("Expected an expression"),
+                        }
+                    }
+                    else if let Some(Token::Identifier(name)) = self.stream.look_token(0).cloned() {
+                        self.stream.next();
+
+                        match self.stream.look_token(0) {
+                            Some(Token::Assign) => {
+                                self.stream.next();
+                                
+                                match self.try_parse_expression() {
+                                    Some(value_expr) => fields.push(TableField {
+                                        key: Some(Expression::Named(name)),
+                                        value: value_expr,
+                                    }),
+                                    None => self.error("Expected an expression"),
+                                }
+                            },
+                            _ => self.error("Expected '='"),
+                        };
+                    }
+                    else if let Some(expr) = self.try_parse_expression() {
+                        fields.push(TableField {
+                            key: None,
+                            value: expr,
+                        });
+                    }
+                    else if let Some(Token::RightBrace) = self.stream.look_token(0) {
+                        self.stream.next();
+                        break;
+                    }
+                    else {
+                        self.error("Unexpected token");
+                    }
+
+                    if !fields.is_empty() {
+                        if self.stream.look_token(0).map_or(false, |a| a == &Token::Comma || a == &Token::SemiColon) {
+                            self.stream.next();
+                        }
+                        else if self.stream.look_token(0).map_or(false, |a| a != &Token::RightBrace) {
+                            self.error("Expected a separator ',' or ';'");
+                        }
+                    }
+                }
+
+                Some(Expression::Table(fields))
             }
             _ => None,
         }

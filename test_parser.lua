@@ -11,4 +11,14 @@ return nil, true, false, 44, 44.5, 'quote', "double quote",
        (1 + 2*3),
        abc,
        (table)[get_idx() + 1][i].obj.field,
-       get().obj.field:func(1, 2, "string", false)
+       get().obj.field:func(1, 2, "string", false),
+       {
+           1,
+           "sss";
+           false,
+           [2] = "s";
+           ["d"] = 4,
+           field = value;
+           func = function() return 4*5 end
+       },
+       {}

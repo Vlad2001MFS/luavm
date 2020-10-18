@@ -47,6 +47,7 @@ pub enum Expression {
         expr: Box<Expression>,
         suffixes: Vec<Suffix>,
     },
+    Table(Vec<TableField>),
     BinaryOp {
         op: Token,
         left_expr: Box<Expression>,
@@ -75,5 +76,12 @@ pub enum Suffix {
 #[derive(Debug)]
 pub enum CallArgs {
     ExpressionList(Vec<Expression>),
+    Table(Box<Expression>),
     String(String),
+}
+
+#[derive(Debug)]
+pub struct TableField {
+    pub key: Option<Expression>,
+    pub value: Expression,
 }
