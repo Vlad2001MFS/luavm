@@ -7,4 +7,8 @@ return nil, true, false, 44, 44.5, 'quote', "double quote",
        1 < 2 and 3 > 2 or 1 ~= 2, ...,
        function(a, b) return 1..2 << 3 >> 5 & 6 ~ 7 | 8 end,
        function(...) return 1 < 2, 3 > 4, 5 <= 6, 7 >= 8, 9 ~= 10, 11 == 12 end,
-       function(a, b, ...) return 1 < 2 and 3 > 2 or 1 ~= 2, ... end
+       function(a, b, ...) return 1 < 2 and 3 > 2 or 1 ~= 2, ... end,
+       (1 + 2*3),
+       abc,
+       (table)[idx + 1][i].obj.field,
+       obj.field

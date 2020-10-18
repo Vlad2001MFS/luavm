@@ -6,11 +6,12 @@ chunk               ::= block                                                   
 block               ::= {stat} [retstat]                                                            $$$
 stat                ::= ‘;’
 retstat             ::= return [explist] [‘;’]                                                      $$$
+var                 ::= Name | prefixexp ‘[’ exp ‘]’ | prefixexp ‘.’ Name                           $$$
 namelist            ::= Name {‘,’ Name}                                                             $$$
 explist             ::= exp {‘,’ exp}                                                               $$$
 exp                 ::= nil | false | true | Numeral | LiteralString | ‘...’ | functiondef |
                         prefixexp | exp binop exp | unop exp
-prefixexp           ::= ‘(’ exp ‘)’
+prefixexp           ::= var | ‘(’ exp ‘)’
 functiondef         ::= function funcbody                                                           $$$
 funcbody            ::= ‘(’ [parlist] ‘)’ block end                                                 $$$
 parlist             ::= namelist [‘,’ ‘...’] | ‘...’                                                $$$
@@ -31,7 +32,7 @@ use crate::{
         ast::{
             Chunk, Block,
             Statement, ReturnStatement,
-            Expression, FunctionBody,
+            Expression, FunctionBody, Suffix,
         },
     },
 };
@@ -143,12 +144,6 @@ impl Parser {
             _ => None,
         }
     }
-
-    /*
-       or
-       and
-       <     >     <=    >=    ~=    ==
-    */
 
     fn try_parse_expression(&mut self) -> Option<Expression> {
         match self.try_parse_expression_and() {
@@ -386,7 +381,6 @@ impl Parser {
         }
     }
 
-    
     fn try_parse_expression_arithm_factor(&mut self) -> Option<Expression> {
         let factor = match self.stream.look_token(0).cloned() {
             Some(Token::Nil) => {
@@ -432,22 +426,7 @@ impl Parser {
                     None => self.error_none("Expected a factor"),
                 }
             }
-            Some(Token::LeftParen) => {
-                self.stream.next();
-                if let Some(expr) = self.try_parse_expression() {
-                    if let Some(Token::RightParen) = self.stream.look_token(0) {
-                        self.stream.next();
-                        Some(expr)
-                    }
-                    else {
-                        self.error_none("Expected ')'")
-                    }
-                }
-                else {
-                    self.error_none("Expected an expression")
-                }
-            }
-            _ => None,
+            _ => self.try_parse_suffixed_expression(),
         };
 
         match factor {
@@ -473,6 +452,81 @@ impl Parser {
         }
     }
 
+    fn try_parse_suffixed_expression(&mut self) -> Option<Expression> {
+        match self.stream.look_token(0).cloned() {
+            Some(Token::Identifier(name)) => {
+                self.stream.next();
+                match self.try_parse_suffixes() {
+                    Some(suffixes) => Some(Expression::Suffixed {
+                        expr: Box::new(Expression::Named(name)),
+                        suffixes,
+                    }),
+                    None => Some(Expression::Named(name)),
+                }
+            }
+            Some(Token::LeftParen) => {
+                self.stream.next();
+                if let Some(expr) = self.try_parse_expression() {
+                    if let Some(Token::RightParen) = self.stream.look_token(0) {
+                        self.stream.next();
+                        match self.try_parse_suffixes() {
+                            Some(suffixes) => Some(Expression::Suffixed {
+                                expr: Box::new(expr),
+                                suffixes,
+                            }),
+                            None => Some(expr),
+                        }
+                    }
+                    else {
+                        self.error_none("Expected ')'")
+                    }
+                }
+                else {
+                    self.error_none("Expected an expression")
+                }
+            }
+            _ => None,
+        }
+    }
+
+    fn try_parse_suffixes(&mut self ) -> Option<Vec<Suffix>> {
+        let mut suffixes = Vec::new();
+        loop {
+            match self.stream.look_token(0) {
+                Some(Token::Dot) => {
+                    self.stream.next();
+                    match self.stream.look_token(0).cloned() {
+                        Some(Token::Identifier(name)) => {
+                            self.stream.next();
+                            suffixes.push(Suffix::Index(Box::new(Expression::Named(name))))
+                        }
+                        _ => self.error("Expected a suffixed expression"),
+                    };
+                }
+                Some(Token::LeftBracket) => {
+                    self.stream.next();
+                    match self.try_parse_expression() {
+                        Some(expr) => {
+                            match self.stream.look_token(0) {
+                                Some(Token::RightBracket) => self.stream.next(),
+                                _ => self.error_bool("Expected ']'"),
+                            };
+
+                            suffixes.push(Suffix::Index(Box::new(expr)));
+                        },
+                        None => self.error("Expected a suffixed expression"),
+                    }
+                }
+                _ => break,
+            }
+        }
+
+        match suffixes.is_empty() {
+            true => None,
+            false => Some(suffixes),
+        }
+    }
+
     fn try_parse_function_body(&mut self) -> Option<FunctionBody> {
         match self.stream.look_token(0) {
             Some(Token::LeftParen) => {
@@ -482,7 +536,7 @@ impl Parser {
 
                 match self.stream.look_token(0) {
                     Some(Token::RightParen) => self.stream.next(),
-                    _ => self.error("Expected ')'"),
+                    _ => self.error_bool("Expected ')'"),
                 };
 
                 let block = self.parse_block(Some(Token::End));
@@ -550,8 +604,14 @@ impl Parser {
     }
 
     #[track_caller]
-    fn error(&self, desc: &str) -> bool {
+    fn error_bool(&self, desc: &str) -> bool {
         self.error_none::<()>(desc);
         false
+    }
+
+    
+    #[track_caller]
+    fn error(&self, desc: &str) {
+        self.error_bool(desc);
     }
 }

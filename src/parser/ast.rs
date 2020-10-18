@@ -42,6 +42,11 @@ pub enum Expression {
     String(String),
     VarArg,
     FunctionDef(FunctionBody),
+    Named(String),
+    Suffixed {
+        expr: Box<Expression>,
+        suffixes: Vec<Suffix>,
+    },
     BinaryOp {
         op: Token,
         left_expr: Box<Expression>,
@@ -58,4 +63,9 @@ pub struct FunctionBody {
     pub param_list: Vec<String>,
     pub param_list_has_vararg: bool,
     pub block: Block,
+}
+
+#[derive(Debug)]
+pub enum Suffix {
+    Index(Box<Expression>),
 }
