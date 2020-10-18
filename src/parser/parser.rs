@@ -432,7 +432,22 @@ impl Parser {
                     None => self.error_none("Expected a factor"),
                 }
             }
-            _ => self.try_parse_prefix_expression(),
+            Some(Token::LeftParen) => {
+                self.stream.next();
+                if let Some(expr) = self.try_parse_expression() {
+                    if let Some(Token::RightParen) = self.stream.look_token(0) {
+                        self.stream.next();
+                        Some(expr)
+                    }
+                    else {
+                        self.error_none("Expected ')'")
+                    }
+                }
+                else {
+                    self.error_none("Expected an expression")
+                }
+            }
+            _ => None,
         };
 
         match factor {
@@ -455,27 +470,6 @@ impl Parser {
                 }
             }
             None => None,
-        }
-    }
-
-    fn try_parse_prefix_expression(&mut self) -> Option<Expression> {
-        match self.stream.look_token(0) {
-            Some(Token::LeftParen) => {
-                self.stream.next();
-                if let Some(expr) = self.try_parse_expression() {
-                    if let Some(Token::RightParen) = self.stream.look_token(0) {
-                        self.stream.next();
-                        Some(expr)
-                    }
-                    else {
-                        self.error_none("Expected ')'")
-                    }
-                }
-                else {
-                    self.error_none("Expected an expression")
-                }
-            }
-            _ => None,
         }
     }
 
