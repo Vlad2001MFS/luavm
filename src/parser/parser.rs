@@ -2,19 +2,23 @@
 
 $$$ - fully implemented relational to original Lua grammar
 
-chunk     ::= block                                                     $$$
-block     ::= {stat} [retstat]                                          $$$
-stat      ::= ‘;’
-retstat   ::= return [explist] [‘;’]                                    $$$
-explist   ::= exp {‘,’ exp}                                             $$$
-exp       ::= nil | false | true | Numeral | LiteralString | ‘...’ |
-              prefixexp | exp binop exp | unop exp
-prefixexp ::= ‘(’ exp ‘)’
-binop     ::= ‘+’ | ‘-’ | ‘*’ | ‘/’ | ‘//’ | ‘^’ | ‘%’ |                $$$
-              ‘&’ | ‘~’ | ‘|’ | ‘>>’ | ‘<<’ | ‘..’ |                    $$$
-              ‘<’ | ‘<=’ | ‘>’ | ‘>=’ | ‘==’ | ‘~=’ |                   $$$
-              and | or                                                  $$$
-unop      ::= ‘-’ | not | ‘#’ | ‘~’                                     $$$
+chunk               ::= block                                                                       $$$
+block               ::= {stat} [retstat]                                                            $$$
+stat                ::= ‘;’
+retstat             ::= return [explist] [‘;’]                                                      $$$
+namelist            ::= Name {‘,’ Name}                                                             $$$
+explist             ::= exp {‘,’ exp}                                                               $$$
+exp                 ::= nil | false | true | Numeral | LiteralString | ‘...’ | functiondef |
+                        prefixexp | exp binop exp | unop exp
+prefixexp           ::= ‘(’ exp ‘)’
+functiondef         ::= function funcbody                                                           $$$
+funcbody            ::= ‘(’ [parlist] ‘)’ block end                                                 $$$
+parlist             ::= namelist [‘,’ ‘...’] | ‘...’                                                $$$
+binop               ::= ‘+’ | ‘-’ | ‘*’ | ‘/’ | ‘//’ | ‘^’ | ‘%’ |                                  $$$
+                        ‘&’ | ‘~’ | ‘|’ | ‘>>’ | ‘<<’ | ‘..’ |                                      $$$
+                        ‘<’ | ‘<=’ | ‘>’ | ‘>=’ | ‘==’ | ‘~=’ |                                     $$$
+                        and | or                                                                    $$$
+unop                ::= ‘-’ | not | ‘#’ | ‘~’                                                       $$$
 
 */
 
@@ -27,7 +31,7 @@ use crate::{
         ast::{
             Chunk, Block,
             Statement, ReturnStatement,
-            Expression,
+            Expression, FunctionBody,
         },
     },
 };
@@ -43,26 +47,40 @@ impl Parser {
         };
 
         Chunk {
-            block: parser.parse_block()
+            block: parser.parse_block(None),
         }
     }
 
-    fn parse_block(&mut self) -> Block {
+    fn parse_block(&mut self, ending_token: Option<Token>) -> Block {
         let mut result = Block {
             statements: Vec::new(),
             return_statement: None,
         };
 
+        let mut is_found_ending_token = false;
         while !self.stream.is_eof() {
             if let Some(statement) = self.try_parse_statement() {
                 result.statements.push(statement);
             }
             else if let Some(return_statement) = self.try_parse_return_statement() {
                 result.return_statement = Some(return_statement);
+                if ending_token.is_none() {
+                    break;
+                }
+            }
+            else if self.stream.look_token(0) == ending_token.as_ref() {
+                self.stream.next();
+                is_found_ending_token = true;
                 break;
             }
             else {
                 self.error("Unknown syntax construction");
+            }
+        }
+
+        if let Some(ending_token) = ending_token {
+            if !is_found_ending_token {
+                self.error(&format!("Expected the ending token '{:?}'", ending_token));
             }
         }
 
@@ -395,6 +413,15 @@ impl Parser {
                 self.stream.next();
                 Some(Expression::VarArg)
             }
+            Some(Token::Function) => {
+                self.stream.next();
+                match self.try_parse_function_body() {
+                    Some(body_expr) => {
+                        Some(Expression::FunctionDef(body_expr))
+                    }
+                    None => self.error_none("Expected a function body")
+                }
+            }
             Some(token) if [Token::Not, Token::Len, Token::Sub, Token::BitNotXor].contains(&token) => {
                 self.stream.next();
                 match self.try_parse_expression_arithm_factor() {
@@ -446,6 +473,69 @@ impl Parser {
         }
     }
 
+    fn try_parse_function_body(&mut self) -> Option<FunctionBody> {
+        match self.stream.look_token(0) {
+            Some(Token::LeftParen) => {
+                self.stream.next();
+
+                let param_list = self.try_parse_name_list(true);
+
+                match self.stream.look_token(0) {
+                    Some(Token::RightParen) => self.stream.next(),
+                    _ => self.error("Expected ')'"),
+                };
+
+                let block = self.parse_block(Some(Token::End));
+
+                match param_list {
+                    Some(param_list) => Some(FunctionBody {
+                        param_list: param_list.0,
+                        param_list_has_vararg: param_list.1,
+                        block,
+                    }),
+                    None => Some(FunctionBody {
+                        param_list: Vec::new(),
+                        param_list_has_vararg: false,
+                        block,
+                    })
+                }
+            }
+            _ => None,
+        }
+    }
+
+    fn try_parse_name_list(&mut self, can_has_dots3: bool) -> Option<(Vec<String>, bool)> {
+        match self.stream.look_token(0) {
+            Some(Token::Identifier(_)) => {
+                let mut names = Vec::new();
+                let mut has_dots3 = false;
+                loop {
+                    match self.stream.look_token(0).cloned() {
+                        Some(Token::Identifier(name)) => {
+                            self.stream.next();
+                            names.push(name.clone());
+                        }
+                        Some(Token::Dots3) if can_has_dots3 => {
+                            self.stream.next();
+                            has_dots3 = true;
+                            break;
+                        }
+                        Some(Token::Comma) => {
+                            self.stream.next();
+                        }
+                        _ => break,
+                    }
+                }
+                Some((names, has_dots3))
+            }
+            Some(Token::Dots3) if can_has_dots3 => {
+                self.stream.next();
+                Some((Vec::new(), true))
+            }
+            _ => None,
+        }
+    }
+
     #[track_caller]
     fn error_none<T>(&self, desc: &str) -> Option<T> {
         match self.stream.look_token_info(0) {
@@ -460,7 +550,8 @@ impl Parser {
     }
 
     #[track_caller]
-    fn error(&self, desc: &str) {
+    fn error(&self, desc: &str) -> bool {
         self.error_none::<()>(desc);
+        false
     }
 }

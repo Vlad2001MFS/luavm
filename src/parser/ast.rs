@@ -41,6 +41,7 @@ pub enum Expression {
     Number(f64),
     String(String),
     VarArg,
+    FunctionDef(FunctionBody),
     BinaryOp {
         op: Token,
         left_expr: Box<Expression>,
@@ -50,4 +51,11 @@ pub enum Expression {
         op: Token,
         expr: Box<Expression>,
     },
+}
+
+#[derive(Debug)]
+pub struct FunctionBody {
+    pub param_list: Vec<String>,
+    pub param_list_has_vararg: bool,
+    pub block: Block,
 }
