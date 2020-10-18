@@ -646,7 +646,11 @@ impl Parser {
             Some(token_info) => {
                 let token_begin_loc = token_info.begin_location();
                 let token_end_loc = token_info.end_location();
-                let pointer = " ".repeat(token_begin_loc.column() - 1) + &"^".repeat(token_end_loc.column() - token_begin_loc.column());
+                let pointer_len = match token_end_loc.column() > token_begin_loc.column() {
+                    true => token_end_loc.column() - token_begin_loc.column(),
+                    false => 1,
+                };
+                let pointer = " ".repeat(token_begin_loc.column() - 1) + &"^".repeat(pointer_len);
                 panic!(format!("{}:{}: Parser error: {}\n{}\n{}", token_begin_loc.source_name(), token_begin_loc, desc, token_begin_loc.content(), pointer))
             }
             None => {
