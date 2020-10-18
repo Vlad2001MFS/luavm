@@ -7,7 +7,7 @@ block     ::= {stat} [retstat]                                          $$$
 stat      ::= ‘;’
 retstat   ::= return [explist] [‘;’]                                    $$$
 explist   ::= exp {‘,’ exp}                                             $$$
-exp       ::= nil | false | true | Numeral | LiteralString |
+exp       ::= nil | false | true | Numeral | LiteralString | ‘...’ |
               prefixexp | exp binop exp | unop exp
 prefixexp ::= ‘(’ exp ‘)’
 binop     ::= ‘+’ | ‘-’ | ‘*’ | ‘/’ | ‘//’ | ‘^’ | ‘%’ |                $$$
@@ -390,6 +390,10 @@ impl Parser {
             Some(Token::String(string)) => {
                 self.stream.next();
                 Some(Expression::String(string.clone()))
+            }
+            Some(Token::Dots3) => {
+                self.stream.next();
+                Some(Expression::VarArg)
             }
             Some(token) if [Token::Not, Token::Len, Token::Sub, Token::BitNotXor].contains(&token) => {
                 self.stream.next();

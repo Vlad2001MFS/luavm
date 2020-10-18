@@ -40,6 +40,7 @@ pub enum Expression {
     Bool(bool),
     Number(f64),
     String(String),
+    VarArg,
     BinaryOp {
         op: Token,
         left_expr: Box<Expression>,
