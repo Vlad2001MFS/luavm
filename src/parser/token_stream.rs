@@ -41,4 +41,8 @@ impl TokenStream {
     pub fn is_eof(&self) -> bool {
         self.current_idx - 1 >= self.data.len()
     }
+
+    pub fn last_token_info(&self) -> Option<&TokenInfo> {
+        self.data.last()
+    }
 }

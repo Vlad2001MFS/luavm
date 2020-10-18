@@ -592,14 +592,20 @@ impl Parser {
 
     #[track_caller]
     fn error_none<T>(&self, desc: &str) -> Option<T> {
-        match self.stream.look_token_info(0) {
+        let token_info = match self.stream.look_token_info(0) {
+            Some(token_info) => Some(token_info),
+            None => self.stream.last_token_info(),
+        };
+        match token_info {
             Some(token_info) => {
                 let token_begin_loc = token_info.begin_location();
                 let token_end_loc = token_info.end_location();
                 let pointer = " ".repeat(token_begin_loc.column() - 1) + &"^".repeat(token_end_loc.column() - token_begin_loc.column());
                 panic!(format!("{}:{}: Parser error: {}\n{}\n{}", token_begin_loc.source_name(), token_begin_loc, desc, token_begin_loc.content(), pointer))
             }
-            None => panic!(format!("Parser error: {}", desc))
+            None => {
+                panic!(format!("Parser error: {}", desc))
+            }
         }
     }
 
