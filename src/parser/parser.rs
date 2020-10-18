@@ -64,9 +64,9 @@ impl Parser {
                 result.statements.push(statement);
             }
             else if let Some(return_statement) = self.try_parse_return_statement() {
-                result.return_statement = Some(return_statement);
-                if ending_token.is_none() {
-                    break;
+                match result.return_statement.is_none() {
+                    true => result.return_statement = Some(return_statement),
+                    false => self.error("Expected an end of block after first return"),
                 }
             }
             else if self.stream.look_token(0) == ending_token.as_ref() {
