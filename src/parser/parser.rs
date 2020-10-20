@@ -93,7 +93,7 @@ impl Parser {
 
         if let Some(ending_token) = ending_token {
             if !is_found_ending_token {
-                self.error(&format!("Expected the ending token '{:?}'", ending_token));
+                self.error(&format!("Expected the ending token '{}'", ending_token));
             }
         }
 
@@ -203,15 +203,11 @@ impl Parser {
         match self.stream.look_token(0) {
             Some(Token::DoubleColon) => {
                 self.stream.next();
-                match self.stream.look_token(0).cloned() {
-                    Some(Token::Identifier(name)) => {
-                        self.stream.next();
-                        self.expect(Token::DoubleColon);
-                        
-                        Some(Statement::Label(name))
-                    }
-                    _ => self.error_none("Expected a label name"),
-                }
+                
+                let name = self.expect_name();
+                self.expect(Token::DoubleColon);
+                
+                Some(Statement::Label(name))
             }
             _ => None,
         }
@@ -231,13 +227,7 @@ impl Parser {
         match self.stream.look_token(0) {
             Some(Token::Goto) => {
                 self.stream.next();
-                match self.stream.look_token(0).cloned() {
-                    Some(Token::Identifier(name)) => {
-                        self.stream.next();
-                        Some(Statement::Goto(name))
-                    }
-                    _ => self.error_none("Expected a target label name"),
-                }
+                Some(Statement::Goto(self.expect_name()))
             }
             _ => None,
         }
@@ -863,6 +853,20 @@ impl Parser {
             Some(token) => self.error_bool(&format!("Expected '{}' instead '{}'", expected_token, token)),
             _ => self.error_bool("Unexpected end of token stream"),
         };
+    }
+
+    #[track_caller]
+    fn expect_name(&mut self) -> String {
+        match self.stream.look_token(0).cloned() {
+            Some(Token::Identifier(name)) => {
+                self.stream.next();
+                name
+            }
+            _ => {
+                self.error("Expected an identifier");
+                unreachable!();
+            },
+        }
     }
 
     #[track_caller]
