@@ -13,8 +13,12 @@ pub struct Block {
 
 #[derive(Debug)]
 pub enum Statement {
-    /*Assignment(AssignmentStatement),
-    FunctionCall(FunctionCallStatement),
+    Empty,
+    Assignment {
+        var_list: Vec<Expression>,
+        expr_list: Vec<Expression>,
+    },
+    /*FunctionCall(FunctionCallStatement),
     Label(LabelStatement),
     Break,
     Goto(GotoStatement),

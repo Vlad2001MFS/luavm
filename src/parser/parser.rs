@@ -4,8 +4,10 @@ $$$ - fully implemented relational to original Lua grammar
 
 chunk               ::= block                                                                       $$$
 block               ::= {stat} [retstat]                                                            $$$
-stat                ::= ‘;’
+stat                ::= ‘;’ |
+                        varlist ‘=’ explist
 retstat             ::= return [explist] [‘;’]                                                      $$$
+varlist             ::= var {‘,’ var}
 var                 ::= Name | prefixexp ‘[’ exp ‘]’ | prefixexp ‘.’ Name                           $$$
 namelist            ::= Name {‘,’ Name}                                                             $$$
 explist             ::= exp {‘,’ exp}                                                               $$$
@@ -95,14 +97,57 @@ impl Parser {
     }
 
     fn try_parse_statement(&mut self) -> Option<Statement> {
-        match self.stream.look_token(0) {
-            Some(Token::SemiColon) => {
-                while let Some(Token::SemiColon) = self.stream.look_token(0) {
-                    self.stream.next();
+        while let Some(Token::SemiColon) = self.stream.look_token(0) {
+            self.stream.next();
+        }
+
+        if let Some(assignment) = self.try_parse_assignment_statement() {
+            Some(assignment)
+        }
+        else {
+            None
+        }
+    }
+
+    fn try_parse_assignment_statement(&mut self) -> Option<Statement> {
+        match self.try_parse_variables_list() {
+            Some(var_list) => {
+                match self.stream.look_token(0) {
+                    Some(Token::Assign) => {
+                        self.stream.next();
+
+                        match self.try_parse_expression_list() {
+                            Some(expr_list) => Some(Statement::Assignment {
+                                var_list,
+                                expr_list,
+                            }),
+                            None => self.error_none("Expected an expression list"),
+                        }
+                    },
+                    _ => self.error_none("Expected '='"),
                 }
-                None
             }
-            _ => None,
+            None => None,
+        }
+    }
+
+    fn try_parse_variables_list(&mut self) -> Option<Vec<Expression>> {
+        match self.try_parse_suffixed_expression() {
+            Some(var) => {
+                let mut vars = vec![var];
+
+                while let Some(Token::Comma) = self.stream.look_token(0) {
+                    self.stream.next();
+
+                    match self.try_parse_suffixed_expression() {
+                        Some(var) => vars.push(var),
+                        None => self.error("Expected a suffixed expression"),
+                    };
+                }
+
+                Some(vars)
+            }
+            None => None,
         }
     }
 

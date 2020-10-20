@@ -1,3 +1,12 @@
+a = 7;
+a, b = 2, 3
+c, t = "ssss", {f = false}
+ff = function(a, b, c)
+    a1 = 4
+    b2 = a1;
+    return (a + b + c) / (a1 + b2)
+end
+
 ;;;;
 return nil, true, false, 44, 44.5, 'quote', "double quote",
        -666, not false, #56, ~true,
