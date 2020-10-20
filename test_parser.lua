@@ -14,6 +14,7 @@ table:method("print")
 
 ::label_name::
 break
+goto label_name
 
 ;;;;
 return nil, true, false, 44, 44.5, 'quote', "double quote",

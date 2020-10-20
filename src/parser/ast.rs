@@ -21,6 +21,7 @@ pub enum Statement {
     FunctionCall(Expression),
     Label(String),
     Break,
+    Goto(String),
 }
 
 #[derive(Debug)]

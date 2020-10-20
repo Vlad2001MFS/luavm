@@ -8,7 +8,8 @@ stat                ::= ‘;’ |
                         varlist ‘=’ explist |
                         functioncall |
                         label |
-                        break
+                        break |
+                        goto Name
 retstat             ::= return [explist] [‘;’]                                                      $$$
 varlist             ::= var {‘,’ var}
 var                 ::= Name | prefixexp ‘[’ exp ‘]’ | prefixexp ‘.’ Name                           $$$
@@ -115,6 +116,9 @@ impl Parser {
         }
         else if let Some(break_statement) = self.try_parse_break_statement() {
             Some(break_statement)
+        }
+        else if let Some(goto) = self.try_parse_goto_statement() {
+            Some(goto)
         }
         else {
             None
@@ -225,6 +229,22 @@ impl Parser {
             Some(Token::Break) => {
                 self.stream.next();
                 Some(Statement::Break)
+            }
+            _ => None,
+        }
+    }
+
+    fn try_parse_goto_statement(&mut self) -> Option<Statement> {
+        match self.stream.look_token(0) {
+            Some(Token::Goto) => {
+                self.stream.next();
+                match self.stream.look_token(0).cloned() {
+                    Some(Token::Identifier(name)) => {
+                        self.stream.next();
+                        Some(Statement::Goto(name))
+                    }
+                    _ => self.error_none("Expected a target label name"),
+                }
             }
             _ => None,
         }
