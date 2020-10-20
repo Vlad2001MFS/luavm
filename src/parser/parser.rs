@@ -510,29 +510,17 @@ impl Parser {
     }
 
     fn try_parse_suffixed_expression(&mut self) -> Option<Expression> {
-        match self.stream.look_token(0).cloned() {
+        let main_expr = match self.stream.look_token(0).cloned() {
             Some(Token::Identifier(name)) => {
                 self.stream.next();
-                match self.try_parse_suffixes() {
-                    Some(suffixes) => Some(Expression::Suffixed {
-                        expr: Box::new(Expression::Named(name)),
-                        suffixes,
-                    }),
-                    None => Some(Expression::Named(name)),
-                }
+                Some(Expression::Named(name))
             }
             Some(Token::LeftParen) => {
                 self.stream.next();
                 if let Some(expr) = self.try_parse_expression() {
                     if let Some(Token::RightParen) = self.stream.look_token(0) {
                         self.stream.next();
-                        match self.try_parse_suffixes() {
-                            Some(suffixes) => Some(Expression::Suffixed {
-                                expr: Box::new(expr),
-                                suffixes,
-                            }),
-                            None => Some(expr),
-                        }
+                        Some(expr)
                     }
                     else {
                         self.error_none("Expected ')'")
@@ -543,10 +531,23 @@ impl Parser {
                 }
             }
             _ => None,
+        };
+
+        match main_expr {
+            Some(main_expr) => {
+                match self.try_parse_suffixes() {
+                    Some(suffixes) => Some(Expression::Suffixed {
+                        expr: Box::new(main_expr),
+                        suffixes,
+                    }),
+                    None => Some(main_expr),
+                }
+            }
+            None => None,
         }
     }
 
-    fn try_parse_suffixes(&mut self ) -> Option<Vec<Suffix>> {
+    fn try_parse_suffixes(&mut self) -> Option<Vec<Suffix>> {
         let mut suffixes = Vec::new();
         loop {
             match self.stream.look_token(0).cloned() {
