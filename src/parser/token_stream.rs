@@ -43,6 +43,9 @@ impl TokenStream {
     }
 
     pub fn last_token_info(&self) -> Option<&TokenInfo> {
-        self.data.last()
+        match self.data.get(self.current_idx - 1) {
+            Some(token_info) => Some(token_info),
+            None => self.data.last(),
+        }
     }
 }

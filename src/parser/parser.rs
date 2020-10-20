@@ -800,11 +800,7 @@ impl Parser {
 
     #[track_caller]
     fn error_none<T>(&self, desc: &str) -> Option<T> {
-        let token_info = match self.stream.look_token_info(0) {
-            Some(token_info) => Some(token_info),
-            None => self.stream.last_token_info(),
-        };
-        match token_info {
+        match self.stream.last_token_info() {
             Some(token_info) => {
                 let token_begin_loc = token_info.begin_location();
                 let token_end_loc = token_info.end_location();
