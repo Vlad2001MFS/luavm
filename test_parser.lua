@@ -13,6 +13,7 @@ ff(1, 2, 3);
 table:method("print")
 
 ::label_name::
+break
 
 ;;;;
 return nil, true, false, 44, 44.5, 'quote', "double quote",

@@ -20,6 +20,7 @@ pub enum Statement {
     },
     FunctionCall(Expression),
     Label(String),
+    Break,
 }
 
 #[derive(Debug)]
