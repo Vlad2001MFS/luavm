@@ -1,6 +1,7 @@
 use crate::lexer::{
     TextStream, Location,
 };
+use std::fmt::Display;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
@@ -70,6 +71,71 @@ pub enum Token {
     RightBracket,
     LeftBrace,
     RightBrace,
+}
+
+impl Display for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Token::Identifier(name) => f.write_fmt(format_args!("{}", name)),
+            Token::String(string) => f.write_fmt(format_args!("{}", string)),
+            Token::Number(number) => f.write_fmt(format_args!("{}", number)),
+            Token::Function => f.write_str("function"),
+            Token::End => f.write_str("end"),
+            Token::If => f.write_str("if"),
+            Token::Then => f.write_str("then"),
+            Token::Else => f.write_str("else"),
+            Token::ElseIf => f.write_str("elseif"),
+            Token::For => f.write_str("for"),
+            Token::While => f.write_str("while"),
+            Token::Do => f.write_str("do"),
+            Token::Repeat => f.write_str("repeat"),
+            Token::Until => f.write_str("until"),
+            Token::Or => f.write_str("or"),
+            Token::And => f.write_str("and"),
+            Token::Not => f.write_str("not"),
+            Token::Goto => f.write_str("goto"),
+            Token::Break => f.write_str("break"),
+            Token::Return => f.write_str("return"),
+            Token::In => f.write_str("in"),
+            Token::Local => f.write_str("local"),
+            Token::Nil => f.write_str("nil"),
+            Token::True => f.write_str("true"),
+            Token::False => f.write_str("false"),
+            Token::Add => f.write_str("+"),
+            Token::Sub => f.write_str("-"),
+            Token::Mul => f.write_str("*"),
+            Token::Div => f.write_str("/"),
+            Token::IDiv => f.write_str("//"),
+            Token::Pow => f.write_str("^"),
+            Token::Mod => f.write_str("%"),
+            Token::Len => f.write_str("#"),
+            Token::BitNotXor => f.write_str("~"),
+            Token::BitAnd => f.write_str("&"),
+            Token::BitOr => f.write_str("|"),
+            Token::ShiftRight => f.write_str(">>"),
+            Token::ShiftLeft => f.write_str("<<"),
+            Token::Dots2 => f.write_str(".."),
+            Token::Dots3 => f.write_str("..."),
+            Token::Assign => f.write_str("="),
+            Token::LessThan => f.write_str("<"),
+            Token::LessEqual => f.write_str("<="),
+            Token::GreaterThan => f.write_str(">"),
+            Token::GreaterEqual => f.write_str(">="),
+            Token::Equal => f.write_str("=="),
+            Token::NotEqual => f.write_str("~="),
+            Token::Dot => f.write_str("."),
+            Token::SemiColon => f.write_str(";"),
+            Token::Colon => f.write_str(":"),
+            Token::DoubleColon => f.write_str("::"),
+            Token::Comma => f.write_str(","),
+            Token::LeftParen => f.write_str("("),
+            Token::RightParen => f.write_str(")"),
+            Token::LeftBracket => f.write_str("["),
+            Token::RightBracket => f.write_str("]"),
+            Token::LeftBrace => f.write_str("{"),
+            Token::RightBrace => f.write_str("}"),
+        }
+    }
 }
 
 pub struct TokenInfo {

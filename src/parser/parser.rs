@@ -128,19 +128,14 @@ impl Parser {
     fn try_parse_assignment_statement(&mut self) -> Option<Statement> {
         match self.try_parse_variables_list() {
             Some(var_list) => {
-                match self.stream.look_token(0) {
-                    Some(Token::Assign) => {
-                        self.stream.next();
-
-                        match self.try_parse_expression_list() {
-                            Some(expr_list) => Some(Statement::Assignment {
-                                var_list,
-                                expr_list,
-                            }),
-                            None => self.error_none("Expected an expression list"),
-                        }
-                    },
-                    _ => self.error_none("Expected '='"),
+                self.expect(Token::Assign);
+                
+                match self.try_parse_expression_list() {
+                    Some(expr_list) => Some(Statement::Assignment {
+                        var_list,
+                        expr_list,
+                    }),
+                    None => self.error_none("Expected an expression list"),
                 }
             }
             None => None,
@@ -211,10 +206,8 @@ impl Parser {
                 match self.stream.look_token(0).cloned() {
                     Some(Token::Identifier(name)) => {
                         self.stream.next();
-                        match self.stream.look_token(0) {
-                            Some(Token::DoubleColon) => self.stream.next(),
-                            _ => self.error_bool("Expected '::'"),
-                        };
+                        self.expect(Token::DoubleColon);
+                        
                         Some(Statement::Label(name))
                     }
                     _ => self.error_none("Expected a label name"),
@@ -617,13 +610,8 @@ impl Parser {
             Some(Token::LeftParen) => {
                 self.stream.next();
                 if let Some(expr) = self.try_parse_expression() {
-                    if let Some(Token::RightParen) = self.stream.look_token(0) {
-                        self.stream.next();
-                        Some(expr)
-                    }
-                    else {
-                        self.error_none("Expected ')'")
-                    }
+                    self.expect(Token::RightParen);
+                    Some(expr)
                 }
                 else {
                     self.error_none("Expected an expression")
@@ -666,11 +654,7 @@ impl Parser {
                     self.stream.next();
                     match self.try_parse_expression() {
                         Some(expr) => {
-                            match self.stream.look_token(0) {
-                                Some(Token::RightBracket) => self.stream.next(),
-                                _ => self.error_bool("Expected ']'"),
-                            };
-
+                            self.expect(Token::RightBracket);
                             suffixes.push(Suffix::Index(Box::new(expr)));
                         },
                         None => self.error("Expected a suffixed expression"),
@@ -713,10 +697,7 @@ impl Parser {
 
                 let expr_list = self.try_parse_expression_list();
 
-                match self.stream.look_token(0) {
-                    Some(Token::RightParen) => self.stream.next(),
-                    _ => self.error_bool("Expected ')'"),
-                };
+                self.expect(Token::RightParen);
 
                 match expr_list {
                     Some(expr_list) => Some(CallArgs::ExpressionList(expr_list)),
@@ -748,48 +729,31 @@ impl Parser {
 
                         match self.try_parse_expression() {
                             Some(key_expr) => {
-                                match self.stream.look_token(0) {
-                                    Some(Token::RightBracket) => {
-                                        self.stream.next();
+                                self.expect(Token::RightBracket);
+                                self.expect(Token::Assign);
 
-                                        match self.stream.look_token(0) {
-                                            Some(Token::Assign) => {
-                                                self.stream.next();
-                                                
-                                                match self.try_parse_expression() {
-                                                    Some(value_expr) => fields.push(TableField {
-                                                        key: Some(key_expr),
-                                                        value: value_expr,
-                                                    }),
-                                                    None => self.error("Expected an expression"),
-                                                }
-                                            },
-                                            _ => self.error("Expected '='"),
-                                        };
-                                    },
-                                    _ => self.error("Expected ']'"),
-                                };
+                                match self.try_parse_expression() {
+                                    Some(value_expr) => fields.push(TableField {
+                                        key: Some(key_expr),
+                                        value: value_expr,
+                                    }),
+                                    None => self.error("Expected an expression"),
+                                }
                             },
                             None => self.error("Expected an expression"),
                         }
                     }
                     else if let Some(Token::Identifier(name)) = self.stream.look_token(0).cloned() {
                         self.stream.next();
+                        self.expect(Token::Assign);
 
-                        match self.stream.look_token(0) {
-                            Some(Token::Assign) => {
-                                self.stream.next();
-                                
-                                match self.try_parse_expression() {
-                                    Some(value_expr) => fields.push(TableField {
-                                        key: Some(Expression::Named(name)),
-                                        value: value_expr,
-                                    }),
-                                    None => self.error("Expected an expression"),
-                                }
-                            },
-                            _ => self.error("Expected '='"),
-                        };
+                        match self.try_parse_expression() {
+                            Some(value_expr) => fields.push(TableField {
+                                key: Some(Expression::Named(name)),
+                                value: value_expr,
+                            }),
+                            None => self.error("Expected an expression"),
+                        }
                     }
                     else if let Some(expr) = self.try_parse_expression() {
                         fields.push(TableField {
@@ -828,10 +792,7 @@ impl Parser {
 
                 let param_list = self.try_parse_name_list(true);
 
-                match self.stream.look_token(0) {
-                    Some(Token::RightParen) => self.stream.next(),
-                    _ => self.error_bool("Expected ')'"),
-                };
+                self.expect(Token::RightParen);
 
                 let block = self.parse_block(Some(Token::End));
 
@@ -893,6 +854,15 @@ impl Parser {
             }
             _ => None,
         }
+    }
+
+    #[track_caller]
+    fn expect(&mut self, expected_token: Token) {
+        match self.stream.look_token(0) {
+            Some(token) if token == &expected_token => self.stream.next(),
+            Some(token) => self.error_bool(&format!("Expected '{}' instead '{}'", expected_token, token)),
+            _ => self.error_bool("Unexpected end of token stream"),
+        };
     }
 
     #[track_caller]
