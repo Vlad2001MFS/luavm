@@ -852,31 +852,42 @@ impl Parser {
         }
     }
 
-    fn try_parse_name_list(&mut self, can_has_dots3: bool) -> Option<(Vec<String>, bool)> {
-        match self.stream.look_token(0) {
-            Some(Token::Identifier(_)) => {
-                let mut names = Vec::new();
-                let mut has_dots3 = false;
-                loop {
+    fn try_parse_name_list(&mut self, can_has_vararg: bool) -> Option<(Vec<String>, bool)> {
+        match self.stream.look_token(0).cloned() {
+            Some(Token::Identifier(name)) => {
+                self.stream.next();
+
+                let mut names = vec![name];
+                let mut found_vararg = false;
+
+                while self.stream.look_token(0) == Some(&Token::Comma) {
+                    self.stream.next();
+
                     match self.stream.look_token(0).cloned() {
                         Some(Token::Identifier(name)) => {
                             self.stream.next();
                             names.push(name.clone());
                         }
-                        Some(Token::Dots3) if can_has_dots3 => {
-                            self.stream.next();
-                            has_dots3 = true;
-                            break;
+                        Some(Token::Dots3) => {
+                            match can_has_vararg {
+                                true => {
+                                    self.stream.next();
+                                    found_vararg = true;
+                                    break;
+                                },
+                                false => self.error("Variadic arguments is not allowed in this context"),
+                            }
                         }
-                        Some(Token::Comma) => {
-                            self.stream.next();
-                        }
-                        _ => break,
+                        _ => match can_has_vararg {
+                            true => self.error("Expected a name or a vararg"),
+                            false => self.error("Expected a name"),
+                        },
                     }
                 }
-                Some((names, has_dots3))
+
+                Some((names, found_vararg))
             }
-            Some(Token::Dots3) if can_has_dots3 => {
+            Some(Token::Dots3) if can_has_vararg => {
                 self.stream.next();
                 Some((Vec::new(), true))
             }
