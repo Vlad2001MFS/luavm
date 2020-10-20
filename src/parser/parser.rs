@@ -186,7 +186,7 @@ impl Parser {
         let saved_stream_pos = self.stream.position();
 
         match self.try_parse_suffixed_expression() {
-            Some(Expression::Suffixed{expr, suffixes}) if matches!(suffixes.last().unwrap(), Suffix::CallFree(_) | Suffix::CallMethod(_)) => {
+            Some(Expression::Suffixed{expr, suffixes}) if matches!(suffixes.last().unwrap(), Suffix::CallFree(_) | Suffix::CallMethod{name: _, args: _}) => {
                 Some(Statement::FunctionCall(Expression::Suffixed{
                     expr,
                     suffixes
@@ -656,11 +656,14 @@ impl Parser {
                     }
                     else if let Some(Token::Colon) = self.stream.look_token(0) {
                         self.stream.next();
-                        match self.stream.look_token(0) {
-                            Some(Token::Identifier(_)) => {
+                        match self.stream.look_token(0).cloned() {
+                            Some(Token::Identifier(name)) => {
                                 self.stream.next();
                                 match self.try_parse_call_arguments() {
-                                    Some(args) => suffixes.push(Suffix::CallMethod(args)),
+                                    Some(args) => suffixes.push(Suffix::CallMethod {
+                                        name,
+                                        args,
+                                    }),
                                     None => self.error("Expected arguments or ()"),
                                 }
                             },

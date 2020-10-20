@@ -65,7 +65,10 @@ pub struct FunctionBody {
 pub enum Suffix {
     Index(Box<Expression>),
     CallFree(CallArgs),
-    CallMethod(CallArgs),
+    CallMethod {
+        name: String,
+        args: CallArgs,
+    },
 }
 
 #[derive(Debug)]
