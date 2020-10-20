@@ -28,8 +28,18 @@ fn main() {
 
     let chunk = Parser::parse(tokens);
     if true {
+        let ast_string: String = format!("{:#?}", chunk).lines().map(|line| {
+            let mut spaces_count = 0;
+            for ch in line.chars() {
+                match ch {
+                    ' ' => spaces_count += 1,
+                    _ => break,
+                }
+            }
+            " ".repeat(spaces_count / 2) + line.trim_start() + "\n"
+        }).collect();
         println!("### AST >>>");
-        println!("{:#?}", chunk);
+        println!("{}", ast_string);
         println!("### AST <<<");
     }
 }
