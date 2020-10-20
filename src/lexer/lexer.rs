@@ -589,7 +589,11 @@ impl Lexer {
     }
 
     fn error(&self, desc: &str) {
-        let pointer = " ".repeat(self.stream.location().column() - 1) + "^";
+        let pointer_len = match self.stream.location().column() > 0 {
+            true => self.stream.location().column() - 1,
+            false => 1,
+        };
+        let pointer = " ".repeat(pointer_len) + "^";
         panic!(format!("{}:{}: Lexer error: {}\n{}\n{}", self.stream.location().source_name(), self.stream.location(), desc, self.stream.location().content(), pointer))
     }
 }
