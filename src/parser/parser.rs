@@ -6,7 +6,8 @@ chunk               ::= block                                                   
 block               ::= {stat} [retstat]                                                            $$$
 stat                ::= ‘;’ |
                         varlist ‘=’ explist |
-                        functioncall
+                        functioncall |
+                        label
 retstat             ::= return [explist] [‘;’]                                                      $$$
 varlist             ::= var {‘,’ var}
 var                 ::= Name | prefixexp ‘[’ exp ‘]’ | prefixexp ‘.’ Name                           $$$
@@ -108,6 +109,9 @@ impl Parser {
         else if let Some(function_call) = self.try_parse_function_call_statement() {
             Some(function_call)
         }
+        else if let Some(label) = self.try_parse_label_statement() {
+            Some(label)
+        }
         else {
             None
         }
@@ -189,6 +193,26 @@ impl Parser {
                 self.stream.set_position(saved_stream_pos);
                 None
             }
+        }
+    }
+
+    fn try_parse_label_statement(&mut self) -> Option<Statement> {
+        match self.stream.look_token(0) {
+            Some(Token::DoubleColon) => {
+                self.stream.next();
+                match self.stream.look_token(0).cloned() {
+                    Some(Token::Identifier(name)) => {
+                        self.stream.next();
+                        match self.stream.look_token(0) {
+                            Some(Token::DoubleColon) => self.stream.next(),
+                            _ => self.error_bool("Expected '::'"),
+                        };
+                        Some(Statement::Label(name))
+                    }
+                    _ => self.error_none("Expected a label name"),
+                }
+            }
+            _ => None,
         }
     }
 

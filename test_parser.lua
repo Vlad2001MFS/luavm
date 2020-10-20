@@ -12,6 +12,8 @@ gggg().f = 5
 ff(1, 2, 3);
 table:method("print")
 
+::label_name::
+
 ;;;;
 return nil, true, false, 44, 44.5, 'quote', "double quote",
        -666, not false, #56, ~true,

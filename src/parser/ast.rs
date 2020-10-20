@@ -19,6 +19,7 @@ pub enum Statement {
         expr_list: Vec<Expression>,
     },
     FunctionCall(Expression),
+    Label(String),
 }
 
 #[derive(Debug)]
