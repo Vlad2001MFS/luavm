@@ -38,6 +38,14 @@ impl TokenStream {
         }
     }
 
+    pub fn set_position(&mut self, pos: usize) {
+        self.current_idx = pos;
+    }
+
+    pub fn position(&self) -> usize {
+        self.current_idx
+    }
+
     pub fn is_eof(&self) -> bool {
         self.current_idx - 1 >= self.data.len()
     }

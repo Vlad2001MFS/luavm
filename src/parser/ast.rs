@@ -18,19 +18,7 @@ pub enum Statement {
         var_list: Vec<Expression>,
         expr_list: Vec<Expression>,
     },
-    /*FunctionCall(FunctionCallStatement),
-    Label(LabelStatement),
-    Break,
-    Goto(GotoStatement),
-    Do(DoStatement),
-    While(WhileStatement),
-    Repeat(RepeatStatement),
-    If(IfStatement),
-    For(ForStatement),
-    ForEach(ForEachStatement),
-    Function(FunctionStatement),
-    LocalFunction(LocalFunctionStatement),
-    LocalVariable(LocalVariableStatement),*/
+    FunctionCall(Expression),
 }
 
 #[derive(Debug)]

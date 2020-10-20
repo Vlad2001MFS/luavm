@@ -5,7 +5,8 @@ $$$ - fully implemented relational to original Lua grammar
 chunk               ::= block                                                                       $$$
 block               ::= {stat} [retstat]                                                            $$$
 stat                ::= ‘;’ |
-                        varlist ‘=’ explist
+                        varlist ‘=’ explist |
+                        functioncall
 retstat             ::= return [explist] [‘;’]                                                      $$$
 varlist             ::= var {‘,’ var}
 var                 ::= Name | prefixexp ‘[’ exp ‘]’ | prefixexp ‘.’ Name                           $$$
@@ -104,6 +105,9 @@ impl Parser {
         if let Some(assignment) = self.try_parse_assignment_statement() {
             Some(assignment)
         }
+        else if let Some(function_call) = self.try_parse_function_call_statement() {
+            Some(function_call)
+        }
         else {
             None
         }
@@ -132,22 +136,59 @@ impl Parser {
     }
 
     fn try_parse_variables_list(&mut self) -> Option<Vec<Expression>> {
-        match self.try_parse_suffixed_expression(true, false) {
-            Some(var) => {
-                let mut vars = vec![var];
+        let saved_stream_pos = self.stream.position();
+        
+        let mut vars = Vec::new();
+        loop {
+            match self.stream.look_token(0) {
+                Some(Token::Comma) => match vars.is_empty() {
+                    true => self.error_bool("Expected a variable"),
+                    false => self.stream.next(),
+                },
+                _ => match vars.is_empty() {
+                    true => true,
+                    false => break,
+                },
+            };
 
-                while let Some(Token::Comma) = self.stream.look_token(0) {
-                    self.stream.next();
-
-                    match self.try_parse_suffixed_expression(true, false) {
-                        Some(var) => vars.push(var),
-                        None => self.error("Expected a variable"),
-                    };
+            match self.try_parse_suffixed_expression() {
+                Some(Expression::Named(name)) => vars.push(Expression::Named(name)),
+                Some(Expression::Suffixed{expr, suffixes}) if matches!(suffixes.last().unwrap(), Suffix::Index(_)) => {
+                    vars.push(Expression::Suffixed {
+                        expr,
+                        suffixes,
+                    })
                 }
+                _ => match vars.is_empty() {
+                    true => {
+                        self.stream.set_position(saved_stream_pos);
+                        break;
+                    },
+                    false => self.error("Expected a variable"),
+                },
+            };
+        }
 
-                Some(vars)
+        match vars.is_empty() {
+            true => None,
+            false => Some(vars),
+        }
+    }
+
+    fn try_parse_function_call_statement(&mut self) -> Option<Statement> {
+        let saved_stream_pos = self.stream.position();
+
+        match self.try_parse_suffixed_expression() {
+            Some(Expression::Suffixed{expr, suffixes}) if matches!(suffixes.last().unwrap(), Suffix::CallFree(_) | Suffix::CallMethod(_)) => {
+                Some(Statement::FunctionCall(Expression::Suffixed{
+                    expr,
+                    suffixes
+                }))
             }
-            None => None,
+            _ => {
+                self.stream.set_position(saved_stream_pos);
+                None
+            }
         }
     }
 
@@ -483,7 +524,7 @@ impl Parser {
                     None => self.error_none("Expected a table constructor"),
                 }
             }
-            _ => self.try_parse_suffixed_expression(true, true),
+            _ => self.try_parse_suffixed_expression(),
         };
 
         match factor {
@@ -509,7 +550,7 @@ impl Parser {
         }
     }
 
-    fn try_parse_suffixed_expression(&mut self, can_be_var: bool, can_be_call: bool) -> Option<Expression> {
+    fn try_parse_suffixed_expression(&mut self) -> Option<Expression> {
         let main_expr = match self.stream.look_token(0).cloned() {
             Some(Token::Identifier(name)) => {
                 self.stream.next();
@@ -537,19 +578,6 @@ impl Parser {
             Some(main_expr) => {
                 match self.try_parse_suffixes() {
                     Some(suffixes) => {
-                        if !can_be_var {
-                            match suffixes.last().unwrap() {
-                                Suffix::Index(_) => self.error("Indexing of table is not allowed in this context"),
-                                _ => ()
-                            };
-                        }
-                        if !can_be_call {
-                            match suffixes.last().unwrap() {
-                                Suffix::CallFree(_) => self.error("Calling a function is not allowed in this context"),
-                                Suffix::CallMethod(_) => self.error("Calling a method is not allowed in this context"),
-                                _ => ()
-                            };
-                        }
                         Some(Expression::Suffixed {
                             expr: Box::new(main_expr),
                             suffixes,
