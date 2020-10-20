@@ -132,16 +132,16 @@ impl Parser {
     }
 
     fn try_parse_variables_list(&mut self) -> Option<Vec<Expression>> {
-        match self.try_parse_suffixed_expression() {
+        match self.try_parse_suffixed_expression(true, false) {
             Some(var) => {
                 let mut vars = vec![var];
 
                 while let Some(Token::Comma) = self.stream.look_token(0) {
                     self.stream.next();
 
-                    match self.try_parse_suffixed_expression() {
+                    match self.try_parse_suffixed_expression(true, false) {
                         Some(var) => vars.push(var),
-                        None => self.error("Expected a suffixed expression"),
+                        None => self.error("Expected a variable"),
                     };
                 }
 
@@ -483,7 +483,7 @@ impl Parser {
                     None => self.error_none("Expected a table constructor"),
                 }
             }
-            _ => self.try_parse_suffixed_expression(),
+            _ => self.try_parse_suffixed_expression(true, true),
         };
 
         match factor {
@@ -509,7 +509,7 @@ impl Parser {
         }
     }
 
-    fn try_parse_suffixed_expression(&mut self) -> Option<Expression> {
+    fn try_parse_suffixed_expression(&mut self, can_be_var: bool, can_be_call: bool) -> Option<Expression> {
         let main_expr = match self.stream.look_token(0).cloned() {
             Some(Token::Identifier(name)) => {
                 self.stream.next();
@@ -536,10 +536,25 @@ impl Parser {
         match main_expr {
             Some(main_expr) => {
                 match self.try_parse_suffixes() {
-                    Some(suffixes) => Some(Expression::Suffixed {
-                        expr: Box::new(main_expr),
-                        suffixes,
-                    }),
+                    Some(suffixes) => {
+                        if !can_be_var {
+                            match suffixes.last().unwrap() {
+                                Suffix::Index(_) => self.error("Indexing of table is not allowed in this context"),
+                                _ => ()
+                            };
+                        }
+                        if !can_be_call {
+                            match suffixes.last().unwrap() {
+                                Suffix::CallFree(_) => self.error("Calling a function is not allowed in this context"),
+                                Suffix::CallMethod(_) => self.error("Calling a method is not allowed in this context"),
+                                _ => ()
+                            };
+                        }
+                        Some(Expression::Suffixed {
+                            expr: Box::new(main_expr),
+                            suffixes,
+                        })
+                    },
                     None => Some(main_expr),
                 }
             }
