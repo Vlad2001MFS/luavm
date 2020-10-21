@@ -51,6 +51,8 @@ return  nil, true, false, 44, 44.5, 'quote', "double quote",
                 else
                     print(56)
                 end
+                for i = 1, 10 do print(i) end
+                for i = 1, 5, 2 do print(i) end
             end
         },
         {}

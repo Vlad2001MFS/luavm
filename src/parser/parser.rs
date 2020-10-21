@@ -13,7 +13,8 @@ stat                ::= ‘;’ |
                         do block end |
                         while exp do block end |
                         repeat block until exp |
-                        if exp then block {elseif exp then block} [else block] end
+                        if exp then block {elseif exp then block} [else block] end |
+                        for Name ‘=’ exp ‘,’ exp [‘,’ exp] do block end
 retstat             ::= return [explist] [‘;’]                                                      $$$
 varlist             ::= var {‘,’ var}                                                               $$$
 var                 ::= Name | prefixexp ‘[’ exp ‘]’ | prefixexp ‘.’ Name                           $$$
@@ -158,6 +159,9 @@ impl Parser {
         }
         else if let Some(if_else) = self.try_parse_if_else_statement() {
             Some(if_else)
+        }
+        else if let Some(for_) = self.try_parse_for_statement() {
+            Some(for_)
         }
         else {
             None
@@ -356,6 +360,48 @@ impl Parser {
                     elseif_parts,
                     else_part: else_block,
                 })
+            }
+            false => None,
+        }
+    }
+
+    fn try_parse_for_statement(&mut self) -> Option<Statement> {
+        match self.eat(Token::For) {
+            true => {
+                let varname = self.expect_name();
+                self.expect(Token::Assign);
+
+                let initial_value = match self.try_parse_expression() {
+                    Some(expr) => expr,
+                    None => self.error_type("Expected an initial value"),
+                };
+                self.expect(Token::Comma);
+
+                let limit_value = match self.try_parse_expression() {
+                    Some(expr) => expr,
+                    None => self.error_type("Expected an limit value"),
+                };
+
+                let step_value = match self.eat(Token::Comma) {
+                    true => {
+                        match self.try_parse_expression() {
+                            Some(expr) => Some(expr),
+                            None => self.error_none("Expected an limit value"),
+                        }
+                    }
+                    false => None,
+                };
+
+                match self.try_parse_block_statement() {
+                    Some(Statement::Block(block)) => Some(Statement::For {
+                        varname,
+                        initial_value,
+                        limit_value,
+                        step_value,
+                        block,
+                    }),
+                    _ => self.error_none("Expected a block"),
+                }
             }
             false => None,
         }

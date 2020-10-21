@@ -35,7 +35,14 @@ pub enum Statement {
         if_part: ConditionalBlock,
         elseif_parts: Vec<ConditionalBlock>,
         else_part: Option<Block>,
-    }
+    },
+    For {
+        varname: String,
+        initial_value: Expression,
+        limit_value: Expression,
+        step_value: Option<Expression>,
+        block: Block,
+    },
 }
 
 #[derive(Debug)]
