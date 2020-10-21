@@ -22,6 +22,7 @@ pub enum Statement {
     Label(String),
     Break,
     Goto(String),
+    Block(Block),
 }
 
 #[derive(Debug)]

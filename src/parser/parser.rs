@@ -9,9 +9,10 @@ stat                ::= ‘;’ |
                         functioncall |
                         label |
                         break |
-                        goto Name
+                        goto Name |
+                        do block end
 retstat             ::= return [explist] [‘;’]                                                      $$$
-varlist             ::= var {‘,’ var}
+varlist             ::= var {‘,’ var}                                                               $$$
 var                 ::= Name | prefixexp ‘[’ exp ‘]’ | prefixexp ‘.’ Name                           $$$
 namelist            ::= Name {‘,’ Name}                                                             $$$
 explist             ::= exp {‘,’ exp}                                                               $$$
@@ -143,6 +144,9 @@ impl Parser {
         else if let Some(goto) = self.try_parse_goto_statement() {
             Some(goto)
         }
+        else if let Some(block) = self.try_parse_block_statement() {
+            Some(block)
+        }
         else {
             None
         }
@@ -249,6 +253,13 @@ impl Parser {
     fn try_parse_goto_statement(&mut self) -> Option<Statement> {
         match self.eat(Token::Goto) {
             true => Some(Statement::Goto(self.expect_name())),
+            false => None,
+        }
+    }
+
+    fn try_parse_block_statement(&mut self) -> Option<Statement> {
+        match self.eat(Token::Do) {
+            true => Some(Statement::Block(self.parse_block(Some(Token::End)))),
             false => None,
         }
     }
