@@ -13,7 +13,7 @@ use parser::{
 fn main() {
     let test_source = std::fs::read_to_string("./test_parser.lua").unwrap();
 
-    let tokens = Lexer::parse(&test_source, "test_source");
+    let tokens = Lexer::parse(&test_source, "test_parser");
     if false {
         println!("token = [");
         for token in tokens.iter() {
