@@ -43,6 +43,11 @@ pub enum Statement {
         step_value: Option<Expression>,
         block: Block,
     },
+    GeneralFor {
+        varnames: Vec<String>,
+        expr_list: Vec<Expression>,
+        block: Block,
+    },
 }
 
 #[derive(Debug)]

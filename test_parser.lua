@@ -53,6 +53,8 @@ return  nil, true, false, 44, 44.5, 'quote', "double quote",
                 end
                 for i = 1, 10 do print(i) end
                 for i = 1, 5, 2 do print(i) end
+                for k, v in pairs(table) do print(k, v) end
+                for k, v in pairs(table), t, nil do print(k, v) end
             end
         },
         {}

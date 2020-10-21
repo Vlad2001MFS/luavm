@@ -14,7 +14,8 @@ stat                ::= ‘;’ |
                         while exp do block end |
                         repeat block until exp |
                         if exp then block {elseif exp then block} [else block] end |
-                        for Name ‘=’ exp ‘,’ exp [‘,’ exp] do block end
+                        for Name ‘=’ exp ‘,’ exp [‘,’ exp] do block end |
+                        for namelist in explist do block end
 retstat             ::= return [explist] [‘;’]                                                      $$$
 varlist             ::= var {‘,’ var}                                                               $$$
 var                 ::= Name | prefixexp ‘[’ exp ‘]’ | prefixexp ‘.’ Name                           $$$
@@ -368,39 +369,69 @@ impl Parser {
     fn try_parse_for_statement(&mut self) -> Option<Statement> {
         match self.eat(Token::For) {
             true => {
-                let varname = self.expect_name();
-                self.expect(Token::Assign);
-
-                let initial_value = match self.try_parse_expression() {
-                    Some(expr) => expr,
-                    None => self.error_type("Expected an initial value"),
-                };
-                self.expect(Token::Comma);
-
-                let limit_value = match self.try_parse_expression() {
-                    Some(expr) => expr,
-                    None => self.error_type("Expected an limit value"),
+                let varnames = match self.try_parse_name_list(false) {
+                    Some(name_list) => name_list.0,
+                    None => self.error_type("Expected a variable name"),
                 };
 
-                let step_value = match self.eat(Token::Comma) {
-                    true => {
-                        match self.try_parse_expression() {
-                            Some(expr) => Some(expr),
-                            None => self.error_none("Expected an limit value"),
-                        }
+                if self.eat(Token::Assign) {
+                    if varnames.len() > 1 {
+                        self.error("Initial value may be only one variable");
                     }
-                    false => None,
-                };
 
-                match self.try_parse_block_statement() {
-                    Some(Statement::Block(block)) => Some(Statement::For {
-                        varname,
-                        initial_value,
-                        limit_value,
-                        step_value,
-                        block,
-                    }),
-                    _ => self.error_none("Expected a block"),
+                    let initial_value = match self.try_parse_expression() {
+                        Some(expr) => expr,
+                        None => self.error_type("Expected an initial value"),
+                    };
+                    self.expect(Token::Comma);
+    
+                    let limit_value = match self.try_parse_expression() {
+                        Some(expr) => expr,
+                        None => self.error_type("Expected an limit value"),
+                    };
+    
+                    let step_value = match self.eat(Token::Comma) {
+                        true => {
+                            match self.try_parse_expression() {
+                                Some(expr) => Some(expr),
+                                None => self.error_none("Expected an limit value"),
+                            }
+                        }
+                        false => None,
+                    };
+    
+                    match self.try_parse_block_statement() {
+                        Some(Statement::Block(block)) => Some(Statement::For {
+                            varname: varnames.first().unwrap().clone(),
+                            initial_value,
+                            limit_value,
+                            step_value,
+                            block,
+                        }),
+                        _ => self.error_none("Expected a block"),
+                    }
+                }
+                else if self.eat(Token::In) {
+                    let expr_list = match self.try_parse_expression_list() {
+                        Some(expr_list) => expr_list,
+                        None => self.error_type("Expected at least one expressions - iterator function"),
+                    };
+
+                    if expr_list.len() > 3 {
+                        self.error("Too many expression");
+                    }
+
+                    match self.try_parse_block_statement() {
+                        Some(Statement::Block(block)) => Some(Statement::GeneralFor {
+                            varnames,
+                            expr_list,
+                            block,
+                        }),
+                        _ => self.error_none("Expected a block"),
+                    }
+                }
+                else {
+                    self.error_none("Unknown syntax of for loop")
                 }
             }
             false => None,
