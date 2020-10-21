@@ -10,7 +10,8 @@ stat                ::= ‘;’ |
                         label |
                         break |
                         goto Name |
-                        do block end
+                        do block end |
+                        while exp do block end
 retstat             ::= return [explist] [‘;’]                                                      $$$
 varlist             ::= var {‘,’ var}                                                               $$$
 var                 ::= Name | prefixexp ‘[’ exp ‘]’ | prefixexp ‘.’ Name                           $$$
@@ -138,14 +139,17 @@ impl Parser {
         else if let Some(label) = self.try_parse_label_statement() {
             Some(label)
         }
-        else if let Some(break_statement) = self.try_parse_break_statement() {
-            Some(break_statement)
+        else if let Some(break_) = self.try_parse_break_statement() {
+            Some(break_)
         }
         else if let Some(goto) = self.try_parse_goto_statement() {
             Some(goto)
         }
         else if let Some(block) = self.try_parse_block_statement() {
             Some(block)
+        }
+        else if let Some(while_) = self.try_parse_while_statement() {
+            Some(while_)
         }
         else {
             None
@@ -260,6 +264,26 @@ impl Parser {
     fn try_parse_block_statement(&mut self) -> Option<Statement> {
         match self.eat(Token::Do) {
             true => Some(Statement::Block(self.parse_block(Some(Token::End)))),
+            false => None,
+        }
+    }
+
+    fn try_parse_while_statement(&mut self) -> Option<Statement> {
+        match self.eat(Token::While) {
+            true => {
+                match self.try_parse_expression() {
+                    Some(cond) => {
+                        match self.try_parse_block_statement() {
+                            Some(Statement::Block(block)) => Some(Statement::While {
+                                cond,
+                                block,
+                            }),
+                            _ => self.error_none("Expected a block"),
+                        }
+                    }
+                    None => self.error_none("Expected an expression")
+                }
+            }
             false => None,
         }
     }

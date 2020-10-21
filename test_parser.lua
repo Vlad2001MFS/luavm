@@ -40,6 +40,7 @@ return  nil, true, false, 44, 44.5, 'quote', "double quote",
             func = function() return 4*5 end,
             mm = function()
                 do a = 567; b = 666 end
+                while true do print("while-loop") end
             end
         },
         {}

@@ -23,6 +23,10 @@ pub enum Statement {
     Break,
     Goto(String),
     Block(Block),
+    While {
+        cond: Expression,
+        block: Block,
+    },
 }
 
 #[derive(Debug)]
