@@ -41,6 +41,7 @@ return  nil, true, false, 44, 44.5, 'quote', "double quote",
             mm = function()
                 do a = 567; b = 666 end
                 while true do print("while-loop") end
+                repeat print("repeat-until-loop") until false
             end
         },
         {}

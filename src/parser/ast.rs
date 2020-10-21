@@ -27,6 +27,10 @@ pub enum Statement {
         cond: Expression,
         block: Block,
     },
+    RepeatUntil {
+        cond: Expression,
+        block: Block,
+    },
 }
 
 #[derive(Debug)]

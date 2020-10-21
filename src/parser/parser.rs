@@ -11,7 +11,8 @@ stat                ::= ‘;’ |
                         break |
                         goto Name |
                         do block end |
-                        while exp do block end
+                        while exp do block end |
+                        repeat block until exp
 retstat             ::= return [explist] [‘;’]                                                      $$$
 varlist             ::= var {‘,’ var}                                                               $$$
 var                 ::= Name | prefixexp ‘[’ exp ‘]’ | prefixexp ‘.’ Name                           $$$
@@ -151,6 +152,9 @@ impl Parser {
         else if let Some(while_) = self.try_parse_while_statement() {
             Some(while_)
         }
+        else if let Some(repeat_until) = self.try_parse_repeat_until_statement() {
+            Some(repeat_until)
+        }
         else {
             None
         }
@@ -282,6 +286,22 @@ impl Parser {
                         }
                     }
                     None => self.error_none("Expected an expression")
+                }
+            }
+            false => None,
+        }
+    }
+
+    fn try_parse_repeat_until_statement(&mut self) -> Option<Statement> {
+        match self.eat(Token::Repeat) {
+            true => {
+                let block = self.parse_block(Some(Token::Until));
+                match self.try_parse_expression() {
+                    Some(cond) => Some(Statement::RepeatUntil {
+                        cond,
+                        block,
+                    }),
+                    None => self.error_none("Expected an expression"),
                 }
             }
             false => None,
