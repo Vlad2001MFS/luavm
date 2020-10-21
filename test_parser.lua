@@ -42,6 +42,15 @@ return  nil, true, false, 44, 44.5, 'quote', "double quote",
                 do a = 567; b = 666 end
                 while true do print("while-loop") end
                 repeat print("repeat-until-loop") until false
+                if 1 + 1 == 2 then
+                    print(1)
+                elseif true and false or 1 + 2 > 1 then
+                    print("aaa")
+                elseif false then
+                    print("bbb")
+                else
+                    print(56)
+                end
             end
         },
         {}

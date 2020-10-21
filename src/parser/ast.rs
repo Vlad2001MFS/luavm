@@ -31,6 +31,11 @@ pub enum Statement {
         cond: Expression,
         block: Block,
     },
+    IfElse {
+        if_part: ConditionalBlock,
+        elseif_parts: Vec<ConditionalBlock>,
+        else_part: Option<Block>,
+    }
 }
 
 #[derive(Debug)]
@@ -91,4 +96,10 @@ pub enum CallArgs {
 pub struct TableField {
     pub key: Option<Expression>,
     pub value: Expression,
+}
+
+#[derive(Debug)]
+pub struct ConditionalBlock {
+    pub cond_expr: Expression,
+    pub block: Block,
 }

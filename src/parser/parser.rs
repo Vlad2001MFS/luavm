@@ -12,7 +12,8 @@ stat                ::= ‘;’ |
                         goto Name |
                         do block end |
                         while exp do block end |
-                        repeat block until exp
+                        repeat block until exp |
+                        if exp then block {elseif exp then block} [else block] end
 retstat             ::= return [explist] [‘;’]                                                      $$$
 varlist             ::= var {‘,’ var}                                                               $$$
 var                 ::= Name | prefixexp ‘[’ exp ‘]’ | prefixexp ‘.’ Name                           $$$
@@ -48,6 +49,7 @@ use crate::{
             Chunk, Block,
             Statement, ReturnStatement,
             Expression, FunctionBody, Suffix, CallArgs, TableField,
+            ConditionalBlock,
         },
     },
 };
@@ -88,17 +90,17 @@ impl Parser {
         };
 
         Chunk {
-            block: parser.parse_block(None),
+            block: parser.parse_block(None).0,
         }
     }
 
-    fn parse_block(&mut self, ending_token: Option<Token>) -> Block {
+    fn parse_block(&mut self, ending_token: Option<&[Token]>) -> (Block, Option<Token>) {
         let mut result = Block {
             statements: Vec::new(),
             return_statement: None,
         };
 
-        let mut is_found_ending_token = false;
+        let mut found_ending_token = None;
         while !self.stream.is_eof() {
             if let Some(statement) = self.try_parse_statement() {
                 result.statements.push(statement);
@@ -109,9 +111,8 @@ impl Parser {
                     Some(_) => self.error("Expected an end of block after first return"),
                 }
             }
-            else if self.stream.look_token(0) == ending_token.as_ref() {
-                self.stream.next();
-                is_found_ending_token = true;
+            else if let Some(Some(ending_token)) = ending_token.map(|tokens| self.eat_any_of(tokens)) {
+                found_ending_token = Some(ending_token);
                 break;
             }
             else {
@@ -119,13 +120,13 @@ impl Parser {
             }
         }
 
-        if let Some(ending_token) = ending_token {
-            if !is_found_ending_token {
-                self.error(&format!("Expected the ending token '{}'", ending_token));
+        if let Some(_) = ending_token {
+            if found_ending_token.is_none() {
+                self.error(&format!("Expected the block ending token"));
             }
         }
 
-        result
+        (result, found_ending_token)
     }
 
     fn try_parse_statement(&mut self) -> Option<Statement> {
@@ -154,6 +155,9 @@ impl Parser {
         }
         else if let Some(repeat_until) = self.try_parse_repeat_until_statement() {
             Some(repeat_until)
+        }
+        else if let Some(if_else) = self.try_parse_if_else_statement() {
+            Some(if_else)
         }
         else {
             None
@@ -267,7 +271,7 @@ impl Parser {
 
     fn try_parse_block_statement(&mut self) -> Option<Statement> {
         match self.eat(Token::Do) {
-            true => Some(Statement::Block(self.parse_block(Some(Token::End)))),
+            true => Some(Statement::Block(self.parse_block(Some(&[Token::End])).0)),
             false => None,
         }
     }
@@ -295,7 +299,7 @@ impl Parser {
     fn try_parse_repeat_until_statement(&mut self) -> Option<Statement> {
         match self.eat(Token::Repeat) {
             true => {
-                let block = self.parse_block(Some(Token::Until));
+                let block = self.parse_block(Some(&[Token::Until])).0;
                 match self.try_parse_expression() {
                     Some(cond) => Some(Statement::RepeatUntil {
                         cond,
@@ -303,6 +307,55 @@ impl Parser {
                     }),
                     None => self.error_none("Expected an expression"),
                 }
+            }
+            false => None,
+        }
+    }
+
+    fn try_parse_if_else_statement(&mut self) -> Option<Statement> {
+        match self.eat(Token::If) {
+            true => {
+                let if_cond = match self.try_parse_expression() {
+                    Some(expr) => expr,
+                    None => self.error_type("Expected a conditional expression"),
+                };
+                self.expect(Token::Then);
+                
+                let (if_block, mut ending_token) = self.parse_block(Some(&[Token::ElseIf, Token::Else, Token::End]));
+                let mut elseif_parts = Vec::new();
+
+                while let Some(Token::ElseIf) = ending_token {
+                    let elseif_cond = match self.try_parse_expression() {
+                        Some(expr) => expr,
+                        None => self.error_type("Expected a conditional expression"),
+                    };
+                    self.expect(Token::Then);
+
+                    let (elseif_block, elseif_ending_token) = self.parse_block(Some(&[Token::ElseIf, Token::Else, Token::End]));
+                    ending_token = elseif_ending_token;
+
+                    elseif_parts.push(ConditionalBlock {
+                        cond_expr: elseif_cond,
+                        block: elseif_block,
+                    });
+                };
+
+                let else_block = match ending_token {
+                    Some(Token::Else) => Some(self.parse_block(Some(&[Token::End])).0),
+                    _ => {
+                        self.expect(Token::End);
+                        None
+                    },
+                };
+
+                Some(Statement::IfElse {
+                    if_part: ConditionalBlock {
+                        cond_expr: if_cond,
+                        block: if_block,
+                    },
+                    elseif_parts,
+                    else_part: else_block,
+                })
             }
             false => None,
         }
@@ -605,7 +658,7 @@ impl Parser {
                 let param_list = self.try_parse_name_list(true);
                 self.expect(Token::RightParen);
 
-                let block = self.parse_block(Some(Token::End));
+                let block = self.parse_block(Some(&[Token::End])).0;
 
                 match param_list {
                     Some(param_list) => Some(FunctionBody {
@@ -770,10 +823,15 @@ impl Parser {
         self.error_none::<()>(desc);
         false
     }
-
     
     #[track_caller]
     fn error(&self, desc: &str) {
         self.error_bool(desc);
+    }
+    
+    #[track_caller]
+    fn error_type<T>(&self, desc: &str) -> T {
+        self.error_bool(desc);
+        unreachable!()
     }
 }
