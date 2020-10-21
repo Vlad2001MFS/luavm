@@ -49,6 +49,31 @@ use crate::{
     },
 };
 
+macro_rules! try_parse_expression {
+    ($low_prior_expr:ident, $expr_tokens:expr, $high_prior_expr:ident) => {
+        fn $low_prior_expr(&mut self) -> Option<Expression> {
+            match self.$high_prior_expr() {
+                Some(left_expr) => {
+                    match self.eat_any_of(&$expr_tokens) {
+                        Some(token) => {
+                            match self.$low_prior_expr() {
+                                Some(right_expr) => Some(Expression::BinaryOp {
+                                    op: token,
+                                    left_expr: Box::new(left_expr),
+                                    right_expr: Box::new(right_expr),
+                                }),
+                                None => self.error_none("Expected an expression"),
+                            }
+                        },
+                        _ => Some(left_expr),
+                    }
+                }
+                None => None,
+            }
+        }
+    };
+}
+
 pub struct Parser {
     stream: TokenStream,
 }
@@ -260,215 +285,46 @@ impl Parser {
         }
     }
 
-    fn try_parse_expression(&mut self) -> Option<Expression> {
-        match self.try_parse_expression_and() {
-            Some(left_expr) => {
-                match self.eat(Token::Or) {
-                    true => {
-                        match self.try_parse_expression() {
-                            Some(right_expr) => Some(Expression::BinaryOp {
-                                op: Token::Or,
-                                left_expr: Box::new(left_expr),
-                                right_expr: Box::new(right_expr),
-                            }),
-                            None => self.error_none("Expected an expression"),
-                        }
-                    },
-                    false => Some(left_expr),
-                }
-            }
-            None => None,
-        }
-    }
-
-    fn try_parse_expression_and(&mut self) -> Option<Expression> {
-        match self.try_parse_expression_cmp() {
-            Some(left_expr) => {
-                match self.eat(Token::And) {
-                    true => {
-                        match self.try_parse_expression_and() {
-                            Some(right_expr) => Some(Expression::BinaryOp {
-                                op: Token::And,
-                                left_expr: Box::new(left_expr),
-                                right_expr: Box::new(right_expr),
-                            }),
-                            None => self.error_none("Expected an expression"),
-                        }
-                    }
-                    false => Some(left_expr),
-                }
-            }
-            None => None,
-        }
-    }
-
-    fn try_parse_expression_cmp(&mut self) -> Option<Expression> {
-        match self.try_parse_expression_bit_or() {
-            Some(left_expr) => {
-                match self.eat_any_of(&[Token::LessThan, Token::GreaterThan, Token::LessEqual, Token::GreaterEqual, Token::NotEqual, Token::Equal]) {
-                    Some(token) => {
-                        match self.try_parse_expression_cmp() {
-                            Some(right_expr) => Some(Expression::BinaryOp {
-                                op: token,
-                                left_expr: Box::new(left_expr),
-                                right_expr: Box::new(right_expr),
-                            }),
-                            None => self.error_none("Expected an expression"),
-                        }
-                    }
-                    _ => Some(left_expr),
-                }
-            }
-            None => None,
-        }
-    }
-
-    fn try_parse_expression_bit_or(&mut self) -> Option<Expression> {
-        match self.try_parse_expression_bit_xor() {
-            Some(left_expr) => {
-                match self.eat(Token::BitOr) {
-                    true => {
-                        match self.try_parse_expression_bit_or() {
-                            Some(right_expr) => Some(Expression::BinaryOp {
-                                op: Token::BitOr,
-                                left_expr: Box::new(left_expr),
-                                right_expr: Box::new(right_expr),
-                            }),
-                            None => self.error_none("Expected an expression"),
-                        }
-                    }
-                    false => Some(left_expr),
-                }
-            }
-            None => None,
-        }
-    }
-
-    fn try_parse_expression_bit_xor(&mut self) -> Option<Expression> {
-        match self.try_parse_expression_bit_and() {
-            Some(left_expr) => {
-                match self.eat(Token::BitNotXor) {
-                    true => {
-                        match self.try_parse_expression_bit_xor() {
-                            Some(right_expr) => Some(Expression::BinaryOp {
-                                op: Token::BitNotXor,
-                                left_expr: Box::new(left_expr),
-                                right_expr: Box::new(right_expr),
-                            }),
-                            None => self.error_none("Expected an expression"),
-                        }
-                    }
-                    false => Some(left_expr),
-                }
-            }
-            None => None,
-        }
-    }
-
-    fn try_parse_expression_bit_and(&mut self) -> Option<Expression> {
-        match self.try_parse_expression_shift() {
-            Some(left_expr) => {
-                match self.eat(Token::BitAnd) {
-                    true => {
-                        match self.try_parse_expression_bit_and() {
-                            Some(right_expr) => Some(Expression::BinaryOp {
-                                op: Token::BitAnd,
-                                left_expr: Box::new(left_expr),
-                                right_expr: Box::new(right_expr),
-                            }),
-                            None => self.error_none("Expected an expression"),
-                        }
-                    }
-                    false => Some(left_expr),
-                }
-            }
-            None => None,
-        }
-    }
-
-    fn try_parse_expression_shift(&mut self) -> Option<Expression> {
-        match self.try_parse_expression_concat() {
-            Some(left_expr) => {
-                match self.eat_any_of(&[Token::ShiftLeft, Token::ShiftRight]) {
-                    Some(token) => {
-                        match self.try_parse_expression_shift() {
-                            Some(right_expr) => Some(Expression::BinaryOp {
-                                op: token,
-                                left_expr: Box::new(left_expr),
-                                right_expr: Box::new(right_expr),
-                            }),
-                            None => self.error_none("Expected an expression"),
-                        }
-                    }
-                    _ => Some(left_expr),
-                }
-            }
-            None => None,
-        }
-    }
-
-    fn try_parse_expression_concat(&mut self) -> Option<Expression> {
-        match self.try_parse_expression_arithm() {
-            Some(left_expr) => {
-                match self.eat(Token::Dots2) {
-                    true => {
-                        match self.try_parse_expression_concat() {
-                            Some(right_expr) => Some(Expression::BinaryOp {
-                                op: Token::Dots2,
-                                left_expr: Box::new(left_expr),
-                                right_expr: Box::new(right_expr),
-                            }),
-                            None => self.error_none("Expected an expression"),
-                        }
-                    }
-                    false => Some(left_expr),
-                }
-            }
-            None => None,
-        }
-    }
-
-    fn try_parse_expression_arithm(&mut self) -> Option<Expression> {
-        match self.try_parse_expression_arithm_term() {
-            Some(left_expr) => {
-                match self.eat_any_of(&[Token::Add, Token::Sub]) {
-                    Some(token) => {
-                        match self.try_parse_expression_arithm() {
-                            Some(right_expr) => Some(Expression::BinaryOp {
-                                op: token,
-                                left_expr: Box::new(left_expr),
-                                right_expr: Box::new(right_expr),
-                            }),
-                            None => self.error_none("Expected a right expression"),
-                        }
-                    }
-                    _ => Some(left_expr),
-                }
-            }
-            _ => None,
-        }
-    }
-
-    fn try_parse_expression_arithm_term(&mut self) -> Option<Expression> {
-        match self.try_parse_expression_arithm_factor() {
-            Some(left_expr) => {
-                match self.eat_any_of(&[Token::Mul, Token::Div, Token::IDiv, Token::Mod]) {
-                    Some(token) => {
-                        match self.try_parse_expression_arithm_term() {
-                            Some(right_expr) => Some(Expression::BinaryOp {
-                                op: token,
-                                left_expr: Box::new(left_expr),
-                                right_expr: Box::new(right_expr),
-                            }),
-                            None => self.error_none("Expected a right term"),
-                        }
-                    }
-                    None => Some(left_expr),
-                }
-            }
-            _ => None,
-        }
-    }
+    try_parse_expression!(try_parse_expression,
+                          [Token::Or],
+                          try_parse_expression_and
+    );
+    try_parse_expression!(try_parse_expression_and,
+                          [Token::And],
+                          try_parse_expression_cmp
+    );
+    try_parse_expression!(try_parse_expression_cmp,
+                          [Token::LessThan, Token::GreaterThan, Token::LessEqual, Token::GreaterEqual, Token::NotEqual, Token::Equal],
+                          try_parse_expression_bit_or
+    );
+    try_parse_expression!(try_parse_expression_bit_or,
+                          [Token::BitOr],
+                          try_parse_expression_bit_xor
+    );
+    try_parse_expression!(try_parse_expression_bit_xor,
+                          [Token::BitNotXor],
+                          try_parse_expression_bit_and
+    );
+    try_parse_expression!(try_parse_expression_bit_and,
+                          [Token::BitAnd],
+                          try_parse_expression_shift
+    );
+    try_parse_expression!(try_parse_expression_shift,
+                          [Token::ShiftLeft, Token::ShiftRight],
+                          try_parse_expression_concat
+    );
+    try_parse_expression!(try_parse_expression_concat,
+                          [Token::Dots2],
+                          try_parse_expression_arithm
+    );
+    try_parse_expression!(try_parse_expression_arithm,
+                          [Token::Add, Token::Sub],
+                          try_parse_expression_arithm_term
+    );
+    try_parse_expression!(try_parse_expression_arithm_term,
+                          [Token::Mul, Token::Div, Token::IDiv, Token::Mod],
+                          try_parse_expression_arithm_factor
+    );
 
     fn try_parse_expression_arithm_factor(&mut self) -> Option<Expression> {
         let factor = if self.eat(Token::Nil) {
