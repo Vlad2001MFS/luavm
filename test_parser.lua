@@ -30,6 +30,8 @@ return  nil, true, false, 44, 44.5, 'quote', "double quote",
         abc,
         (table)[get_idx() + 1][i].obj.field,
         get().obj.field:func(1, 2, "string", false),
+        print "test",
+        print {},
         {
             1,
             "sss";
