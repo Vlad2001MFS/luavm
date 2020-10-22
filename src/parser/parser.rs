@@ -18,6 +18,7 @@ stat                ::= ‘;’ |
                         for namelist in explist do block end |
                         function funcname funcbody
 retstat             ::= return [explist] [‘;’]                                                      $$$
+label               ::= ‘::’ Name ‘::’                                                              $$$
 funcname            ::= Name {‘.’ Name} [‘:’ Name]                                                  $$$
 varlist             ::= var {‘,’ var}                                                               $$$
 var                 ::= Name | prefixexp ‘[’ exp ‘]’ | prefixexp ‘.’ Name                           $$$
