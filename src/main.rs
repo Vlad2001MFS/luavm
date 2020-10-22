@@ -66,5 +66,44 @@ fn run_tests(test_dir_path: &str) {
 }
 
 fn main() {
-    run_tests("./lua-5.4.1-tests");
+    if true {
+        run_tests("./lua-5.4.1-tests");
+    }
+    else {
+        let test_source = r#"
+local a = {T.testC[[
+    getglobal a;
+    getglobal b;
+    getglobal b;
+    setglobal a;
+    return *
+    ]]}
+        "#;
+
+        let tokens = Lexer::parse(&test_source, "test_source");
+        if false {
+            println!("token = [");
+            for token in tokens.iter() {
+                println!("  {:?}", token.token());
+            }
+            println!("]");
+        }
+
+        let chunk = Parser::parse(tokens);
+        if true {
+            let ast_string: String = format!("{:#?}", chunk).lines().map(|line| {
+                let mut spaces_count = 0;
+                for ch in line.chars() {
+                    match ch {
+                        ' ' => spaces_count += 1,
+                        _ => break,
+                    }
+                }
+                " ".repeat(spaces_count / 2) + line.trim_start() + "\n"
+            }).collect();
+            println!("### AST >>>");
+            println!("{}", ast_string);
+            println!("### AST <<<");
+        }
+    }
 }

@@ -70,12 +70,15 @@ pub struct TextStream {
 
 impl TextStream {
     pub fn new(src: String, name: String) -> TextStream {
-        TextStream {
+        let mut stream = TextStream {
             data: src.chars().collect(),
             lines: src.lines().map(|a| a.to_owned()).collect(),
-            current_idx: 1,
-            location: Location::new(src.lines().nth(0).unwrap().to_string(), name),
-        }
+            current_idx: 0,
+            location: Location::new(String::new(), name),
+        };
+        stream.next();
+
+        stream
     }
 
     pub fn look(&self, offset: usize) -> Option<char> {
