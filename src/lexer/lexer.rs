@@ -167,6 +167,10 @@ pub struct Lexer {
 impl Lexer {
     pub fn parse(src: &str, name: &str) -> Vec<TokenInfo> {
         let src = src.replace("\r\n", "\n").replace("\n\r", "\n").replace("\r", "\n");
+        let src = match src.starts_with("#!") {
+            true => "--".to_owned() + &src,
+            false => src,
+        };
         let mut lexer = Lexer {
             stream: TextStream::new(src, name.to_string()),
             tokens: Vec::new(),
