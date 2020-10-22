@@ -35,7 +35,8 @@ fn run_tests(test_dir_path: &str) {
         let test_file_stem = path.file_stem().unwrap().to_str().unwrap();
 
         if path.extension().unwrap() == "lua" {
-            let test_source = std::fs::read_to_string(&path).unwrap();
+            let test_source_bytes = std::fs::read(&path).expect(&format!("Failed to load test '{}'", path.to_string_lossy()));
+            let test_source = String::from_utf8_lossy(&test_source_bytes).to_string();
 
             let tokens = Lexer::parse(&test_source, test_file_name);
 
@@ -71,13 +72,8 @@ fn main() {
     }
     else {
         let test_source = r#"
-local a = {T.testC[[
-    getglobal a;
-    getglobal b;
-    getglobal b;
-    setglobal a;
-    return *
-    ]]}
+        a = 0xFFFFFFFFFFFFFFFF
+        assert(a == -1 and a & -1 == a and a & 35 == 35)
         "#;
 
         let tokens = Lexer::parse(&test_source, "test_source");
