@@ -1,41 +1,49 @@
 use std::{
     fmt::Display,
+    rc::Rc,
 };
 
 #[derive(Clone)]
 pub struct Location {
     line: usize,
     column: usize,
-    content: String,
+    lines: Rc<Vec<String>>,
     source_name: String,
 }
 
 impl Location {
-    pub fn new(content: String, source_name: String) -> Location {
+    pub fn new(lines: Rc<Vec<String>>, source_name: String) -> Location {
         Location {
-            content,
+            lines,
             source_name,
             ..Location::default()
         }
     }
 
-    pub fn update(&mut self, ch: char, lines: &[String]) {
+    pub fn update(&mut self, ch: char) {
         if ch == '\n' {
             self.line += 1;
             self.column = 0;
-            self.content = lines.get(self.line - 1).cloned().unwrap_or_default();
         }
         else {
             self.column += 1;
         }
     }
 
+    pub fn line(&self) -> usize {
+        self.line
+    }
+
     pub fn column(&self) -> usize {
         self.column
     }
 
+    pub fn lines(&self) -> &[String] {
+        &self.lines
+    }
+
     pub fn content(&self) -> &str {
-        &self.content
+        &self.lines.get(self.line - 1).expect(&format!("Failed to get content of line {} of source {}", self.line, self.source_name))
     }
 
     pub fn source_name(&self) -> &str {
@@ -48,7 +56,7 @@ impl Default for Location {
         Location {
             line: 1,
             column: 1,
-            content: String::new(),
+            lines: Rc::new(Vec::new()),
             source_name: String::new(),
         }
     }
@@ -70,11 +78,12 @@ pub struct TextStream {
 
 impl TextStream {
     pub fn new(src: String, name: String) -> TextStream {
+        let lines: Vec<String> = src.lines().map(|a| a.to_owned()).collect();
         let mut stream = TextStream {
             data: src.chars().collect(),
-            lines: src.lines().map(|a| a.to_owned()).collect(),
+            lines: lines.clone(),
             current_idx: 0,
-            location: Location::new(String::new(), name),
+            location: Location::new(Rc::new(lines), name),
         };
         stream.next();
 
@@ -119,7 +128,7 @@ impl TextStream {
     pub fn next(&mut self) -> bool {
         match self.data.get(self.current_idx) {
             Some(ch) => {
-                self.location.update(*ch, &self.lines);
+                self.location.update(*ch);
                 self.current_idx += 1;
                 true
             }
@@ -136,6 +145,10 @@ impl TextStream {
 
     pub fn position(&self) -> usize {
         self.current_idx
+    }
+
+    pub fn lines(&self) -> &[String] {
+        &self.lines
     }
 
     #[track_caller]

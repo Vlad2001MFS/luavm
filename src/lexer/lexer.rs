@@ -703,11 +703,40 @@ impl Lexer {
 
     #[track_caller]
     fn error(&self, desc: &str) {
-        let pointer_len = match self.stream.location().column() > 0 {
-            true => self.stream.location().column() - 1,
-            false => 1,
-        };
-        let pointer = " ".repeat(pointer_len) + "^";
-        panic!(format!("\n{}:{}: Lexer error: {}\n{}\n{}\n", self.stream.location().source_name(), self.stream.location(), desc, self.stream.location().content(), pointer))
+        fn build_pointer_str(loc: &Location, len: usize) -> String {
+            match loc.column() > 0 {
+                true => " ".repeat(loc.column() - 1) + &"^".repeat(len),
+                false => "^".repeat(len),
+            }
+        }
+
+        let token_begin_loc = &self.begin_location;
+        let token_end_loc = self.stream.location();
+
+        let mut message = format!("\n{}:{}: Lexer error: {}\n", token_begin_loc.source_name(), token_begin_loc, desc);
+
+        if let Some(line) = self.stream.lines().get(token_begin_loc.line() - 1) {
+            let pointer_len = match token_begin_loc.line() == token_end_loc.line() {
+                true => token_end_loc.column() - token_begin_loc.column(),
+                false => line.chars().count() - token_begin_loc.column() + 1,
+            };
+            let pointer = build_pointer_str(token_begin_loc, pointer_len);
+            message += &format!("{}\n{}\n", line, pointer);
+
+            for i in token_begin_loc.line() + 1..token_end_loc.line() {
+                if let Some(line) = self.stream.lines().get(i - 1) {
+                    let pointer_len = line.chars().count();
+                    let pointer = "^".repeat(pointer_len);
+                    message += &format!("{}\n{}\n", line, pointer);
+                }
+            }
+
+            if let Some(line) = self.stream.lines().get(token_end_loc.line() - 1) {
+                let pointer_len = token_end_loc.column();
+                let pointer = build_pointer_str(token_end_loc, pointer_len);
+                message += &format!("{}\n{}\n", line, pointer);
+            }
+        }
+        panic!(message);
     }
 }

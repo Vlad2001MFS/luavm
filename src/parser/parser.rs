@@ -50,7 +50,7 @@ unop                ::= ‘-’ | not | ‘#’ | ‘~’                       
 
 use crate::{
     lexer::{
-        TokenInfo, Token,
+        TokenInfo, Token, Location,
     },
     parser::{
         TokenStream,
@@ -1004,16 +1004,44 @@ impl Parser {
 
     #[track_caller]
     fn error_none<T>(&self, desc: &str) -> Option<T> {
+        fn build_pointer_str(loc: &Location, len: usize) -> String {
+            match loc.column() > 0 {
+                true => " ".repeat(loc.column() - 1) + &"^".repeat(len),
+                false => "^".repeat(len),
+            }
+        }
+
         match self.stream.last_token_info() {
             Some(token_info) => {
                 let token_begin_loc = token_info.begin_location();
                 let token_end_loc = token_info.end_location();
-                let pointer_len = match token_end_loc.column() > token_begin_loc.column() {
-                    true => token_end_loc.column() - token_begin_loc.column(),
-                    false => 1,
-                };
-                let pointer = " ".repeat(token_begin_loc.column() - 1) + &"^".repeat(pointer_len);
-                panic!(format!("\n{}:{}: Parser error: {}\n{}\n{}\n", token_begin_loc.source_name(), token_begin_loc, desc, token_begin_loc.content(), pointer))
+                let source_lines = token_begin_loc.lines();
+               
+                let mut message = format!("\n{}:{}: Parser error: {}\n", token_begin_loc.source_name(), token_begin_loc, desc);
+
+                if let Some(line) = source_lines.get(token_begin_loc.line() - 1) {
+                    let pointer_len = match token_begin_loc.line() == token_end_loc.line() {
+                        true => token_end_loc.column() - token_begin_loc.column(),
+                        false => line.chars().count() - token_begin_loc.column() + 1,
+                    };
+                    let pointer = build_pointer_str(token_begin_loc, pointer_len);
+                    message += &format!("{}\n{}\n", line, pointer);
+
+                    for i in token_begin_loc.line() + 1..token_end_loc.line() {
+                        if let Some(line) = source_lines.get(i - 1) {
+                            let pointer_len = line.chars().count();
+                            let pointer = "^".repeat(pointer_len);
+                            message += &format!("{}\n{}\n", line, pointer);
+                        }
+                    }
+
+                    if let Some(line) = source_lines.get(token_end_loc.line() - 1) {
+                        let pointer_len = token_end_loc.column();
+                        let pointer = build_pointer_str(token_end_loc, pointer_len);
+                        message += &format!("{}\n{}\n", line, pointer);
+                    }
+                }
+                panic!(message);
             }
             None => {
                 panic!(format!("Parser error: {}\n", desc))
