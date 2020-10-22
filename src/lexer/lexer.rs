@@ -525,13 +525,11 @@ impl Lexer {
         }
         else if self.stream.look(0).map_or(false, |a| a.is_digit(10)) {
             let mut number = self.stream.last_char().to_string();
-            let mut has_digit = false;
             let mut has_dot = false;
             let mut has_exponent = false;
 
             while self.stream.next() {
                 if self.stream.last_char().is_digit(10) {
-                    has_digit = true;
                     number.push(self.stream.last_char());
                 }
                 else if self.stream.last_char() == '.' && !self.stream.look_for_str("..", 0, false, false) {
@@ -545,9 +543,6 @@ impl Lexer {
                 else if self.stream.last_char().eq_ignore_ascii_case(&'e') {
                     if has_exponent {
                         self.error("Invalid number. More than 1 exponent in a number");
-                    }
-                    if !has_digit {
-                        self.error("Invalid number. The exponent requires at least one digit in a number");
                     }
 
                     has_exponent = true;
