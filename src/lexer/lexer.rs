@@ -193,8 +193,7 @@ impl Lexer {
         while !self.stream.is_eof() {
             self.begin_location = self.stream.location().clone();
 
-            if self.try_process_block_comment()
-            || self.try_process_line_comment()
+            if self.try_process_comment()
             || self.try_process_short_string_literal()
             || self.try_process_long_string_literal()
             || self.try_process_identifier()
@@ -212,41 +211,47 @@ impl Lexer {
         }
     }
 
-    fn try_process_line_comment(&mut self) -> bool {
-        if self.stream.look_for_str("--", 0, false, true) {
-            while self.stream.last_char() != '\n' {
-                if !self.stream.next() {
-                    break;
-                }
-            }
-            return true;
-        }
-        false
-    }
-
-    fn try_process_block_comment(&mut self) -> bool {
-        let saved_stream_pos = self.stream.position();
-
-        if self.stream.look_for_str("--[", 0, false, true) {
+    fn try_process_block(&mut self) -> Option<String> {
+        let saved_position_stream = self.stream.position();
+        if self.stream.look_for_str("[", 0, false, true) {
             let mut depth = 0;
             while self.stream.look_for_str("=", 0, false, true) {
                 depth += 1;
             }
             if !self.stream.look_for_str("[", 0, false, true) {
-                self.stream.set_position(saved_stream_pos);
-                return false;
+                self.stream.set_position(saved_position_stream);
+                return None;
             }
 
             let closing_brackets = format!("]{}]", "=".repeat(depth));
+            let mut content = String::new();
             while !self.stream.look_for_str(&closing_brackets, 0, false, true) {
+                content.push(self.stream.last_char());
+
                 if !self.stream.next() {
                     break;
                 }
             }
 
-            return true;
+            return Some(content);
         }
-        
+        None
+    }
+
+    fn try_process_comment(&mut self) -> bool {
+        if self.stream.look_for_str("--", 0, false, true) {
+            return match self.try_process_block() {
+                Some(_) => true,
+                None => {
+                    while self.stream.last_char() != '\n' {
+                        if !self.stream.next() {
+                            break;
+                        }
+                    }
+                    true
+                }
+            };
+        }
         false
     }
 
@@ -358,29 +363,16 @@ impl Lexer {
     }
 
     fn try_process_long_string_literal(&mut self) -> bool {
-        if self.stream.look_for_str("[[", 0, false, true) {
-            let mut string = String::new();
-
-            let mut first = true;
-            while !self.stream.look_for_str("]]", 0, false, true) {
-                if self.stream.look_for_str("\n", 0, false, true) && !first {
-                    string.push('\n');
+        match self.try_process_block() {
+            Some(mut string) => {
+                if string.starts_with("\n") {
+                    string.remove(0);
                 }
-                else {
-                    string.push(self.stream.last_char());
-                }
-
-                if !self.stream.next() {
-                    break;
-                }
-                
-                first = false;
+                self.add_token(Token::String(string));
+                true
             }
-
-            self.add_token(Token::String(string));
-            return true;
+            None => false,
         }
-        false
     }
 
     fn try_process_identifier(&mut self) -> bool {

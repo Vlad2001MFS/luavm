@@ -41,7 +41,7 @@ fn run_tests(test_dir_path: &str) {
 
             let mut tokens_file = File::create(result_dir.join(test_file_stem.to_owned() + ".tokens.txt")).unwrap();
             for token in tokens.iter() {
-                writeln!(tokens_file, "  {:?}", token.token()).unwrap();
+                writeln!(tokens_file, "{:?}", token.token()).unwrap();
             }
 
             let chunk = Parser::parse(tokens);
