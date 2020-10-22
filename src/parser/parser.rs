@@ -1013,10 +1013,10 @@ impl Parser {
                     false => 1,
                 };
                 let pointer = " ".repeat(token_begin_loc.column() - 1) + &"^".repeat(pointer_len);
-                panic!(format!("{}:{}: Parser error: {}\n{}\n{}", token_begin_loc.source_name(), token_begin_loc, desc, token_begin_loc.content(), pointer))
+                panic!(format!("\n{}:{}: Parser error: {}\n{}\n{}\n", token_begin_loc.source_name(), token_begin_loc, desc, token_begin_loc.content(), pointer))
             }
             None => {
-                panic!(format!("Parser error: {}", desc))
+                panic!(format!("Parser error: {}\n", desc))
             }
         }
     }
