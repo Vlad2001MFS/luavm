@@ -259,6 +259,9 @@ impl Lexer {
                 if self.stream.last_char() == '\\' {
                     self.stream.next();
                     match self.stream.last_char() {
+                        '\n' => {
+                            self.stream.next();
+                        },
                         'a' => string.push(0x07 as char),
                         'b' => string.push(0x07 as char),
                         'f' => string.push(0x0C as char),
