@@ -523,9 +523,12 @@ impl Lexer {
 
             return true;
         }
-        else if self.stream.look(0).map_or(false, |a| a.is_digit(10)) {
-            let mut number = self.stream.last_char().to_string();
-            let mut has_dot = false;
+        else if self.stream.look(0).map_or(false, |a| a.is_digit(10)) || (self.stream.look_for_str(".", 0, false, false) && self.stream.look(1).map_or(false, |a| a.is_digit(10))) {
+            let mut number = match self.stream.look_for_str(".", 0, false, false) {
+                true => "0.".to_string(),
+                false => self.stream.last_char().to_string(),
+            };
+            let mut has_dot = self.stream.look_for_str(".", 0, false, false);
             let mut has_exponent = false;
 
             while self.stream.next() {
