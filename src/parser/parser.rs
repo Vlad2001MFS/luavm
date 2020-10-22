@@ -363,10 +363,7 @@ impl Parser {
 
                 let else_block = match ending_token {
                     Some(Token::Else) => Some(self.parse_block(Some(&[Token::End])).0),
-                    _ => {
-                        self.expect(Token::End);
-                        None
-                    },
+                    _ => None,
                 };
 
                 Some(Statement::IfElse {
