@@ -279,7 +279,19 @@ impl Lexer {
                         '\\' => string.push('\\'),
                         '\"' => string.push('\"'),
                         '\'' => string.push('\''),
-                        'z' => self.stream.skip(),
+                        'z' => {
+                            if let Some(next_ch) = self.stream.look(1) {
+                                if next_ch.is_ascii_whitespace() {
+                                    while self.stream.next() {
+                                        if let Some(next_ch) = self.stream.look(1) {
+                                            if !next_ch.is_ascii_whitespace() {
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        },
                         'u' => {
                             self.stream.next();
                             if self.stream.look_for_str("{", 0, false, false) {
