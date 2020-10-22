@@ -55,6 +55,15 @@ return  nil, true, false, 44, 44.5, 'quote', "double quote",
                 for i = 1, 5, 2 do print(i) end
                 for k, v in pairs(table) do print(k, v) end
                 for k, v in pairs(table), t, nil do print(k, v) end
+                function test_func(...)
+                    print(...)
+                end
+                function table.test_func(a)
+                    return a + 1
+                end
+                function table.obj:test_method()
+                    return self.field
+                end
             end
         },
         {}

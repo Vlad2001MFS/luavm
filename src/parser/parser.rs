@@ -15,8 +15,10 @@ stat                ::= ‘;’ |
                         repeat block until exp |
                         if exp then block {elseif exp then block} [else block] end |
                         for Name ‘=’ exp ‘,’ exp [‘,’ exp] do block end |
-                        for namelist in explist do block end
+                        for namelist in explist do block end |
+                        function funcname funcbody
 retstat             ::= return [explist] [‘;’]                                                      $$$
+funcname            ::= Name {‘.’ Name} [‘:’ Name]                                                  $$$
 varlist             ::= var {‘,’ var}                                                               $$$
 var                 ::= Name | prefixexp ‘[’ exp ‘]’ | prefixexp ‘.’ Name                           $$$
 namelist            ::= Name {‘,’ Name}                                                             $$$
@@ -163,6 +165,9 @@ impl Parser {
         }
         else if let Some(for_) = self.try_parse_for_statement() {
             Some(for_)
+        }
+        else if let Some(function_definition) = self.try_parse_function_definition_statement() {
+            Some(function_definition)
         }
         else {
             None
@@ -433,6 +438,37 @@ impl Parser {
                 else {
                     self.error_none("Unknown syntax of for loop")
                 }
+            }
+            false => None,
+        }
+    }
+
+    fn try_parse_function_definition_statement(&mut self) -> Option<Statement> {
+        match self.eat(Token::Function) {
+            true => {
+                let name = self.expect_name();
+
+                let mut suffixes = Vec::new();
+                while self.eat(Token::Dot) {
+                    suffixes.push(self.expect_name());
+                }
+
+                let method_suffix = match self.eat(Token::Colon) {
+                    true => Some(self.expect_name()),
+                    false => None,
+                };
+
+                let body = match self.try_parse_function_body() {
+                    Some(body) => body,
+                    None => self.error_type("Expected a function body"),
+                };
+
+                Some(Statement::FunctionDef {
+                    name,
+                    suffixes,
+                    method_suffix,
+                    body,
+                })
             }
             false => None,
         }

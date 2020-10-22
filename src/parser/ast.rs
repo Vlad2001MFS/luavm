@@ -48,6 +48,12 @@ pub enum Statement {
         expr_list: Vec<Expression>,
         block: Block,
     },
+    FunctionDef {
+        name: String,
+        suffixes: Vec<String>,
+        method_suffix: Option<String>,
+        body: FunctionBody,
+    },
 }
 
 #[derive(Debug)]
