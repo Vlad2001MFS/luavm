@@ -127,6 +127,14 @@ impl TextStream {
         }
     }
 
+    pub fn set_position(&mut self, position: usize) {
+        self.current_idx = position;
+    }
+
+    pub fn position(&self) -> usize {
+        self.current_idx
+    }
+
     #[track_caller]
     pub fn last_char(&self) -> char {
         self.look(0).unwrap()

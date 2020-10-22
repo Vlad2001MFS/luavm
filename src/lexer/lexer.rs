@@ -225,14 +225,28 @@ impl Lexer {
     }
 
     fn try_process_block_comment(&mut self) -> bool {
-        if self.stream.look_for_str("--[[", 0, false, true) {
-            while !self.stream.look_for_str("]]", 0, false, true) {
+        let saved_stream_pos = self.stream.position();
+
+        if self.stream.look_for_str("--[", 0, false, true) {
+            let mut depth = 0;
+            while self.stream.look_for_str("=", 0, false, true) {
+                depth += 1;
+            }
+            if !self.stream.look_for_str("[", 0, false, true) {
+                self.stream.set_position(saved_stream_pos);
+                return false;
+            }
+
+            let closing_brackets = format!("]{}]", "=".repeat(depth));
+            while !self.stream.look_for_str(&closing_brackets, 0, false, true) {
                 if !self.stream.next() {
                     break;
                 }
             }
+
             return true;
         }
+        
         false
     }
 
