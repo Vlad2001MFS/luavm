@@ -34,7 +34,7 @@ fn run_tests(test_dir_path: &str) {
         let test_file_name = path.file_name().unwrap().to_str().unwrap();
         let test_file_stem = path.file_stem().unwrap().to_str().unwrap();
 
-        if path.extension().unwrap() == "lua" {
+        if let Some(Some("lua")) = path.extension().map(|ext| ext.to_str()) {
             let test_source_bytes = std::fs::read(&path).expect(&format!("Failed to load test '{}'", path.to_string_lossy()));
             let test_source = String::from_utf8_lossy(&test_source_bytes).to_string();
 
