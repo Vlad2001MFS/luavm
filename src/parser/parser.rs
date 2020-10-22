@@ -809,28 +809,39 @@ impl Parser {
                             None => self.error("Expected an expression"),
                         }
                     }
-                    else if let Some(name) = self.eat_name() {
-                        self.expect(Token::Assign);
-
-                        match self.try_parse_expression() {
-                            Some(value_expr) => fields.push(TableField {
-                                key: Some(Expression::Named(name)),
-                                value: value_expr,
-                            }),
-                            None => self.error("Expected an expression"),
-                        }
-                    }
-                    else if let Some(expr) = self.try_parse_expression() {
-                        fields.push(TableField {
-                            key: None,
-                            value: expr,
-                        });
-                    }
                     else if self.eat(Token::RightBrace) {
                         break;
                     }
                     else {
-                        self.error("Unexpected token");
+                        let has_name = match self.stream.look_token(0) {
+                            Some(Token::Identifier(_)) => true,
+                            _ => false,
+                        };
+                        let has_assign = match self.stream.look_token(1) {
+                            Some(Token::Assign) => true,
+                            _ => false,
+                        };
+                        if has_name && has_assign {
+                            let name = self.expect_name();
+                            self.expect(Token::Assign);
+
+                            match self.try_parse_expression() {
+                                Some(value_expr) => fields.push(TableField {
+                                    key: Some(Expression::Named(name)),
+                                    value: value_expr,
+                                }),
+                                None => self.error("Expected an expression"),
+                            }
+                        }
+                        else if let Some(expr) = self.try_parse_expression() {
+                            fields.push(TableField {
+                                key: None,
+                                value: expr,
+                            });
+                        }
+                        else {
+                            self.error("Unexpected token");
+                        }
                     }
 
                     if !fields.is_empty() && self.eat_any_of(&[Token::Comma, Token::SemiColon]).is_none() && !self.look_for(Token::RightBrace) {
