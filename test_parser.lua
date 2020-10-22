@@ -69,6 +69,12 @@ return  nil, true, false, 44, 44.5, 'quote', "double quote",
                 local function local_test_func(a, b)
                     return a + b
                 end
+                local a = 5
+                local a, b = 1, 2
+                local a, b = get_something();
+                local a<const>, b
+                local a, b<close> = "string", true;
+                local a<const>, b<close>
             end
         },
         {}

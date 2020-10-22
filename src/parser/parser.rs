@@ -4,20 +4,23 @@ $$$ - fully implemented relational to original Lua grammar
 
 chunk               ::= block                                                                       $$$
 block               ::= {stat} [retstat]                                                            $$$
-stat                ::= ‘;’ |
-                        varlist ‘=’ explist |
-                        functioncall |
-                        label |
-                        break |
-                        goto Name |
-                        do block end |
-                        while exp do block end |
-                        repeat block until exp |
-                        if exp then block {elseif exp then block} [else block] end |
-                        for Name ‘=’ exp ‘,’ exp [‘,’ exp] do block end |
-                        for namelist in explist do block end |
-                        function funcname funcbody |
-                        local function Name funcbody
+stat                ::= ‘;’ |                                                                       $$$
+                        varlist ‘=’ explist |                                                       $$$
+                        functioncall |                                                              $$$
+                        label |                                                                     $$$
+                        break |                                                                     $$$
+                        goto Name |                                                                 $$$
+                        do block end |                                                              $$$
+                        while exp do block end |                                                    $$$
+                        repeat block until exp |                                                    $$$
+                        if exp then block {elseif exp then block} [else block] end |                $$$
+                        for Name ‘=’ exp ‘,’ exp [‘,’ exp] do block end |                           $$$
+                        for namelist in explist do block end |                                      $$$
+                        function funcname funcbody |                                                $$$
+                        local function Name funcbody |                                              $$$
+                        local attnamelist [‘=’ explist]                                             $$$
+attnamelist         ::= Name attrib {‘,’ Name attrib}                                               $$$
+attrib              ::= [‘<’ Name ‘>’]                                                              $$$
 retstat             ::= return [explist] [‘;’]                                                      $$$
 label               ::= ‘::’ Name ‘::’                                                              $$$
 funcname            ::= Name {‘.’ Name} [‘:’ Name]                                                  $$$
@@ -55,7 +58,7 @@ use crate::{
             Chunk, Block,
             Statement, ReturnStatement,
             Expression, FunctionBody, Suffix, CallArgs, TableField,
-            ConditionalBlock,
+            ConditionalBlock, LocalVariableAttrib,
         },
     },
 };
@@ -173,6 +176,9 @@ impl Parser {
         }
         else if let Some(local_function_definition) = self.try_parse_local_function_definition_statement() {
             Some(local_function_definition)
+        }
+        else if let Some(local_variables) = self.try_parse_local_variables_statement() {
+            Some(local_variables)
         }
         else {
             None
@@ -499,6 +505,54 @@ impl Parser {
                 self.stream.set_position(saved_stream_pos);
                 None
             }
+        }
+    }
+
+    fn try_parse_local_variables_statement(&mut self) -> Option<Statement> {
+        match self.eat(Token::Local) {
+            true => {
+                let name = self.expect_name();
+                let attrib = self.try_parse_local_variable_attrib();
+
+                let mut variables = vec![(name, attrib)];
+                while self.eat(Token::Comma) {
+                    let name = self.expect_name();
+                    let attrib = self.try_parse_local_variable_attrib();
+                    variables.push((name, attrib));
+                }
+
+                let expressions = match self.eat(Token::Assign) {
+                    true => {
+                        match self.try_parse_expression_list() {
+                            Some(expr_list) => Some(expr_list),
+                            None => self.error_none("Expected an expression list"),
+                        }
+                    }
+                    false => None,
+                };
+
+                Some(Statement::LocalVariables {
+                    variables,
+                    expressions: expressions.unwrap_or(Vec::new()),
+                })
+            }
+            false => None,
+        }
+    }
+
+    fn try_parse_local_variable_attrib(&mut self) -> Option<LocalVariableAttrib> {
+        match self.eat(Token::LessThan) {
+            true => {
+                let name = self.expect_name();
+                self.expect(Token::GreaterThan);
+
+                Some(match name.as_str() {
+                    "const" => LocalVariableAttrib::Const,
+                    "close" => LocalVariableAttrib::Close,
+                    _ => self.error_type("Expected 'const' or 'close' local variable attribute"),
+                })
+            }
+            false => None,
         }
     }
 

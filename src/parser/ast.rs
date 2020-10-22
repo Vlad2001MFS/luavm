@@ -58,6 +58,10 @@ pub enum Statement {
         name: String,
         body: FunctionBody,
     },
+    LocalVariables {
+        variables: Vec<(String, Option<LocalVariableAttrib>)>,
+        expressions: Vec<Expression>,
+    },
 }
 
 #[derive(Debug)]
@@ -124,4 +128,10 @@ pub struct TableField {
 pub struct ConditionalBlock {
     pub cond_expr: Expression,
     pub block: Block,
+}
+
+#[derive(Debug)]
+pub enum LocalVariableAttrib {
+    Const,
+    Close,
 }
