@@ -28,7 +28,7 @@ fn run_tests(test_dir_path: &str) {
 
     std::fs::create_dir(&result_dir).unwrap();
 
-    let mut skip_test = true;
+    let mut skip_test = false;
     for entry in std::fs::read_dir(test_dir_path).unwrap() {
         let entry = entry.unwrap();
         let path = entry.path();
@@ -67,7 +67,7 @@ fn run_tests(test_dir_path: &str) {
             }
         }
 
-        if test_file_stem == "heavy" {
+        if test_file_stem == "" {
             skip_test = false;
         }
     }
