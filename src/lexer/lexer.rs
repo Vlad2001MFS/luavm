@@ -297,28 +297,28 @@ impl Lexer {
                             if self.stream.look_for_str("{", 0, false, false) {
                                 let mut num = 0;
 
-                                let mut i = 0;
-                                while self.stream.look(i + 1).map_or(false, |ch| ch != '}') {
-                                    i += 1;
+                                let mut count = 0;
+                                while self.stream.look(count + 1).map_or(false, |ch| ch != '}') {
+                                    count += 1;
                                 }
 
-                                for _ in 0..i {
+                                for _ in 0..count {
                                     if self.stream.next() {
                                         if let Some(digit) = self.stream.last_char().to_digit(16) {
-                                            num += digit*16_u32.pow((i - 1) as u32);
+                                            num += digit*16_u32.pow((count - 1) as u32);
                                         }
                                         else {
                                             self.error("Invalid escaped byte in hexadecimal representation")
                                         }
                                     }
 
-                                    i -= 1;
+                                    count -= 1;
                                 }
                                 self.stream.next();
 
                                 match std::char::from_u32(num) {
                                     Some(num) => string.push(num),
-                                    None => self.error("Invalid unicode value"),
+                                    None => string.push(std::char::REPLACEMENT_CHARACTER),
                                 }
                             }
                         }
