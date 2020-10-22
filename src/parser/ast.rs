@@ -54,6 +54,10 @@ pub enum Statement {
         method_suffix: Option<String>,
         body: FunctionBody,
     },
+    LocalFunctionDef {
+        name: String,
+        body: FunctionBody,
+    },
 }
 
 #[derive(Debug)]

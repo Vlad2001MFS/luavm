@@ -66,6 +66,9 @@ return  nil, true, false, 44, 44.5, 'quote', "double quote",
                 function table.obj:test_method()
                     return self.field
                 end
+                local function local_test_func(a, b)
+                    return a + b
+                end
             end
         },
         {}

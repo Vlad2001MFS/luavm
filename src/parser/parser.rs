@@ -16,7 +16,8 @@ stat                ::= ‘;’ |
                         if exp then block {elseif exp then block} [else block] end |
                         for Name ‘=’ exp ‘,’ exp [‘,’ exp] do block end |
                         for namelist in explist do block end |
-                        function funcname funcbody
+                        function funcname funcbody |
+                        local function Name funcbody
 retstat             ::= return [explist] [‘;’]                                                      $$$
 label               ::= ‘::’ Name ‘::’                                                              $$$
 funcname            ::= Name {‘.’ Name} [‘:’ Name]                                                  $$$
@@ -169,6 +170,9 @@ impl Parser {
         }
         else if let Some(function_definition) = self.try_parse_function_definition_statement() {
             Some(function_definition)
+        }
+        else if let Some(local_function_definition) = self.try_parse_local_function_definition_statement() {
+            Some(local_function_definition)
         }
         else {
             None
@@ -472,6 +476,29 @@ impl Parser {
                 })
             }
             false => None,
+        }
+    }
+
+    fn try_parse_local_function_definition_statement(&mut self) -> Option<Statement> {
+        let saved_stream_pos = self.stream.position();
+
+        match self.eat(Token::Local) && self.eat(Token::Function) {
+            true => {
+                let name = self.expect_name();
+                let body = match self.try_parse_function_body() {
+                    Some(body) => body,
+                    None => self.error_type("Expected a function body"),
+                };
+
+                Some(Statement::LocalFunctionDef {
+                    name,
+                    body,
+                })
+            }
+            false => {
+                self.stream.set_position(saved_stream_pos);
+                None
+            }
         }
     }
 
