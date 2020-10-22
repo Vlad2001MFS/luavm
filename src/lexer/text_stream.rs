@@ -140,7 +140,7 @@ impl TextStream {
 
     #[track_caller]
     pub fn last_char(&self) -> char {
-        self.look(0).unwrap()
+        self.look(0).expect("Unexpected end of source")
     }
 
     pub fn location(&self) -> &Location {

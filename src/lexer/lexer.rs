@@ -289,11 +289,13 @@ impl Lexer {
                                 }
 
                                 for _ in 0..i {
-                                    if self.stream.next() && self.stream.last_char().is_digit(16) {
-                                        num += self.stream.last_char().to_digit(16).unwrap()*16_u32.pow((i - 1) as u32);
-                                    }
-                                    else {
-                                        self.error("Invalid escaped byte in hexadecimal representation")
+                                    if self.stream.next() {
+                                        if let Some(digit) = self.stream.last_char().to_digit(16) {
+                                            num += digit*16_u32.pow((i - 1) as u32);
+                                        }
+                                        else {
+                                            self.error("Invalid escaped byte in hexadecimal representation")
+                                        }
                                     }
 
                                     i -= 1;
@@ -310,8 +312,8 @@ impl Lexer {
                             let mut num = 0;
 
                             for i in 0..3 {
-                                if self.stream.last_char().is_digit(10) {
-                                    num += self.stream.last_char().to_digit(10).unwrap()*10_u32.pow(2 - i);
+                                if let Some(digit) = self.stream.last_char().to_digit(10) {
+                                    num += digit*10_u32.pow(2 - i);
 
                                     if i < 2 && self.stream.look(1).map_or(false, |ch| ch.is_digit(10)) {
                                         self.stream.next();
@@ -334,11 +336,13 @@ impl Lexer {
                             let mut num = 0;
 
                             for i in 0..2 {
-                                if self.stream.next() && self.stream.last_char().is_digit(16) {
-                                    num += self.stream.last_char().to_digit(16).unwrap()*16_u32.pow(1 - i);
-                                }
-                                else {
-                                    self.error("Invalid escaped byte in hexadecimal representation")
+                                if self.stream.next() {
+                                    if let Some(digit) = self.stream.last_char().to_digit(16) {
+                                        num += digit*16_u32.pow(1 - i);
+                                    }
+                                    else {
+                                        self.error("Invalid escaped byte in hexadecimal representation")
+                                    }
                                 }
                             }
 
@@ -421,13 +425,12 @@ impl Lexer {
 
     fn try_process_number(&mut self) -> bool {
         if self.stream.look_for_str("0x", 0, false, false) {
-            self.stream.next();
-
             let mut number = "0x".to_string();
             let mut has_digit = false;
             let mut has_dot = false;
             let mut has_exponent = false;
 
+            self.stream.next();
             while self.stream.next() {
                 if self.stream.last_char().is_digit(16) {
                     has_digit = true;
@@ -465,17 +468,42 @@ impl Lexer {
             }
             
             let num = match has_dot {
-                true => match has_exponent {
-                    true => hexf::parse_hexf64(&number, false).unwrap(),
-                    false => hexf::parse_hexf64(&(number + "p0"), false).unwrap(),
+                true => {
+                    let number = match has_exponent {
+                        true => hexf::parse_hexf64(&number, false),
+                        false => hexf::parse_hexf64(&(number + "p0"), false),
+                    };
+                    match number {
+                        Ok(number) => number,
+                        Err(err) => {
+                            self.error(&format!("Invalid hexadecimal number: {}", err));
+                            unreachable!();
+                        }
+                    }
                 }
-                false => match has_exponent {
-                    true => {
-                        let insert_dot_idx = number.find(|a: char| a.eq_ignore_ascii_case(&'p')).unwrap();
-                        number.insert(insert_dot_idx, '.');
-                        hexf::parse_hexf64(&number, false).unwrap()
-                    },
-                    false => i64::from_str_radix(&number.trim_start_matches("0x"), 16).unwrap() as f64,
+                false => {
+                    match has_exponent {
+                        true => {
+                            let insert_dot_idx = number.find(|a: char| a.eq_ignore_ascii_case(&'p')).unwrap();
+                            number.insert(insert_dot_idx, '.');
+                            match hexf::parse_hexf64(&number, false) {
+                                Ok(number) => number,
+                                Err(err) => {
+                                    self.error(&format!("Invalid hexadecimal number: {}", err));
+                                    unreachable!();
+                                }
+                            }
+                        },
+                        false => {
+                            match i64::from_str_radix(&number.trim_start_matches("0x"), 16) {
+                                Ok(number) => number as f64,
+                                Err(err) => {
+                                    self.error(&format!("Invalid hexadecimal number: {}", err));
+                                    unreachable!();
+                                }
+                            }
+                        },
+                    }
                 }
             };
 
@@ -524,7 +552,13 @@ impl Lexer {
                 }
             }
 
-            let num = number.parse::<f64>().unwrap();
+            let num = match number.parse::<f64>() {
+                Ok(number) => number,
+                Err(err) => {
+                    self.error(&format!("Invalid number: {}", err));
+                    unreachable!();
+                }
+            };
             self.add_token(Token::Number(num));
             return true;
         }
