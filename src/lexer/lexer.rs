@@ -8,6 +8,7 @@ pub enum Token {
     Identifier(String),
     String(String),
     Number(f64),
+    IntNumber(i64),
 
     // Keywords
     Function,
@@ -79,6 +80,7 @@ impl Display for Token {
             Token::Identifier(name) => f.write_fmt(format_args!("{}", name)),
             Token::String(string) => f.write_fmt(format_args!("{}", string)),
             Token::Number(number) => f.write_fmt(format_args!("{}", number)),
+            Token::IntNumber(number) => f.write_fmt(format_args!("{}", number)),
             Token::Function => f.write_str("function"),
             Token::End => f.write_str("end"),
             Token::If => f.write_str("if"),
@@ -467,16 +469,16 @@ impl Lexer {
                 }
             }
             
-            let num = match has_dot {
+            self.add_token(match has_dot {
                 true => {
                     let number = match has_exponent {
                         true => hexf::parse_hexf64(&number, false),
                         false => hexf::parse_hexf64(&(number + "p0"), false),
                     };
                     match number {
-                        Ok(number) => number,
+                        Ok(number) => Token::Number(number),
                         Err(err) => {
-                            self.error(&format!("Invalid hexadecimal number: {}", err));
+                            self.error(&format!("Invalid float hexadecimal number: {}", err));
                             unreachable!();
                         }
                     }
@@ -487,16 +489,16 @@ impl Lexer {
                             let insert_dot_idx = number.find(|a: char| a.eq_ignore_ascii_case(&'p')).unwrap();
                             number.insert(insert_dot_idx, '.');
                             match hexf::parse_hexf64(&number, false) {
-                                Ok(number) => number,
+                                Ok(number) => Token::Number(number),
                                 Err(err) => {
-                                    self.error(&format!("Invalid hexadecimal number: {}", err));
+                                    self.error(&format!("Invalid float hexadecimal number: {}", err));
                                     unreachable!();
                                 }
                             }
                         },
                         false => {
-                            match i64::from_str_radix(&number.trim_start_matches("0x"), 16) {
-                                Ok(number) => number as f64,
+                            match u64::from_str_radix(&number.trim_start_matches("0x"), 16) {
+                                Ok(number) => Token::IntNumber(number.reverse_bits() as i64),
                                 Err(err) => {
                                     self.error(&format!("Invalid hexadecimal number: {}", err));
                                     unreachable!();
@@ -505,9 +507,8 @@ impl Lexer {
                         },
                     }
                 }
-            };
+            });
 
-            self.add_token(Token::Number(num));
             return true;
         }
         else if self.stream.look(0).map_or(false, |a| a.is_digit(10)) {
@@ -552,14 +553,28 @@ impl Lexer {
                 }
             }
 
-            let num = match number.parse::<f64>() {
-                Ok(number) => number,
-                Err(err) => {
-                    self.error(&format!("Invalid number: {}", err));
-                    unreachable!();
+            self.add_token(match has_dot || has_exponent {
+                true => {
+                    let num = match number.parse::<f64>() {
+                        Ok(number) => number,
+                        Err(err) => {
+                            self.error(&format!("Invalid float number: {}", err));
+                            unreachable!();
+                        }
+                    };
+                    Token::Number(num)
                 }
-            };
-            self.add_token(Token::Number(num));
+                false => {
+                    let num = match number.parse::<i64>() {
+                        Ok(number) => number,
+                        Err(err) => {
+                            self.error(&format!("Invalid number: {}", err));
+                            unreachable!();
+                        }
+                    };
+                    Token::IntNumber(num)
+                }
+            });
             return true;
         }
         false

@@ -74,6 +74,7 @@ pub enum Expression {
     Nil,
     Bool(bool),
     Number(f64),
+    IntNumber(i64),
     String(String),
     VarArg,
     FunctionDef(FunctionBody),

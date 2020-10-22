@@ -639,6 +639,9 @@ impl Parser {
         else if let Some(number) = self.eat_number() {
             Some(Expression::Number(number))
         }
+        else if let Some(number) = self.eat_int_number() {
+            Some(Expression::IntNumber(number))
+        }
         else if let Some(string) = self.eat_string() {
             Some(Expression::String(string.clone()))
         }
@@ -968,6 +971,17 @@ impl Parser {
     fn eat_number(&mut self) -> Option<f64> {
         match self.stream.look_token(0).cloned() {
             Some(Token::Number(number)) => {
+                self.stream.next();
+                Some(number)
+            },
+            _ => None,
+        }
+    }
+
+    #[track_caller]
+    fn eat_int_number(&mut self) -> Option<i64> {
+        match self.stream.look_token(0).cloned() {
+            Some(Token::IntNumber(number)) => {
                 self.stream.next();
                 Some(number)
             },
