@@ -443,12 +443,20 @@ impl Lexer {
             let mut has_digit = false;
             let mut has_dot = false;
             let mut has_exponent = false;
+            let mut fractional_digits_count = 0;
 
             self.stream.next();
             while self.stream.next() {
                 if self.stream.last_char().is_digit(16) {
                     has_digit = true;
-                    number.push(self.stream.last_char());
+
+                    if fractional_digits_count < 13 {
+                        number.push(self.stream.last_char());
+                    }
+                    
+                    if has_dot {
+                        fractional_digits_count += 1;
+                    }
                 }
                 else if self.stream.last_char() == '.' && !self.stream.look_for_str("..", 0, false, false) {
                     if has_dot {
@@ -509,11 +517,16 @@ impl Lexer {
                             }
                         },
                         false => {
-                            match u64::from_str_radix(&number.trim_start_matches("0x"), 16) {
-                                Ok(number) => Token::IntNumber(number.reverse_bits() as i64),
-                                Err(err) => {
-                                    self.error(&format!("Invalid hexadecimal number: {}", err));
-                                    unreachable!();
+                            match i64::from_str_radix(&number.trim_start_matches("0x"), 16) {
+                                Ok(number) => Token::IntNumber(number),
+                                Err(_) => {
+                                    match u128::from_str_radix(&number.trim_start_matches("0x"), 16) {
+                                        Ok(number) => Token::IntNumber(number as i64),
+                                        Err(err) => {
+                                            self.error(&format!("Invalid hexadecimal number: {}", err));
+                                            unreachable!();
+                                        }
+                                    }
                                 }
                             }
                         },
@@ -530,10 +543,17 @@ impl Lexer {
             };
             let mut has_dot = self.stream.look_for_str(".", 0, false, false);
             let mut has_exponent = false;
+            let mut fractional_digits_count = 0;
 
             while self.stream.next() {
                 if self.stream.last_char().is_digit(10) {
-                    number.push(self.stream.last_char());
+                    if fractional_digits_count < 13 {
+                        number.push(self.stream.last_char());
+                    }
+                    
+                    if has_dot {
+                        fractional_digits_count += 1;
+                    }
                 }
                 else if self.stream.last_char() == '.' && !self.stream.look_for_str("..", 0, false, false) {
                     if has_dot {
@@ -575,14 +595,18 @@ impl Lexer {
                     Token::Number(num)
                 }
                 false => {
-                    let num = match number.parse::<i64>() {
-                        Ok(number) => number,
-                        Err(err) => {
-                            self.error(&format!("Invalid number: {}", err));
-                            unreachable!();
+                    match number.parse::<i64>() {
+                        Ok(number) => Token::IntNumber(number),
+                        Err(_) => {
+                            match number.parse::<f64>() {
+                                Ok(number) => Token::Number(number),
+                                Err(err) => {
+                                    self.error(&format!("Invalid number: {}", err));
+                                    unreachable!();
+                                }
+                            }
                         }
-                    };
-                    Token::IntNumber(num)
+                    }
                 }
             });
             return true;
