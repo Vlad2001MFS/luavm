@@ -1049,10 +1049,12 @@ impl Parser {
                         }
                     }
 
-                    if let Some(line) = source_lines.get(token_end_loc.line() - 1) {
-                        let pointer_len = token_end_loc.column();
-                        let pointer = build_pointer_str(token_end_loc, pointer_len);
-                        message += &format!("{}\n{}\n", line, pointer);
+                    if token_begin_loc.line() != token_end_loc.line() {
+                        if let Some(line) = source_lines.get(token_end_loc.line() - 1) {
+                            let pointer_len = token_end_loc.column();
+                            let pointer = build_pointer_str(token_end_loc, pointer_len);
+                            message += &format!("{}\n{}\n", line, pointer);
+                        }
                     }
                 }
                 panic!(message);
