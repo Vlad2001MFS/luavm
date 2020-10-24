@@ -55,7 +55,7 @@ impl Default for Location {
     fn default() -> Self {
         Location {
             line: 1,
-            column: 1,
+            column: 0,
             lines: Rc::new(Vec::new()),
             source_name: String::new(),
         }
@@ -72,7 +72,7 @@ impl Display for Location {
 pub struct TextStream {
     data: Vec<char>,
     lines: Vec<String>,
-    current_idx: usize,
+    next_idx: usize,
     location: Location,
 }
 
@@ -82,7 +82,7 @@ impl TextStream {
         let mut stream = TextStream {
             data: src.chars().collect(),
             lines: lines.clone(),
-            current_idx: 0,
+            next_idx: 0,
             location: Location::new(Rc::new(lines), name),
         };
         stream.next();
@@ -91,60 +91,60 @@ impl TextStream {
     }
 
     pub fn look(&self, offset: usize) -> Option<char> {
-        self.data.get(self.current_idx + offset - 1).copied()
+        self.data.get(self.next_idx + offset - 1).copied()
     }
 
-    pub fn look_for_str(&mut self, s: &str, start_offset: usize, case_sensitive: bool, extract_readed: bool) -> bool {
-        for (i, ch) in s.chars().enumerate() {
-            match self.look(start_offset + i) {
-                Some(look_ch) => {
-                    let is_equal = match case_sensitive {
-                        true => look_ch == ch,
-                        false => look_ch.to_lowercase().eq(ch.to_lowercase()),
-                    };
-                    if !is_equal {
-                        return false;
-                    }
-                }
-                None => return false,
-            }
-        }
+    pub fn look_if<P: FnOnce(char) -> bool>(&self, offset: usize, pred: P) -> Option<char> {
+        self.look(offset).filter(|ch| pred(*ch))
+    }
 
-        if extract_readed {
-            for _ in 0..s.len() {
+    pub fn extract(&mut self) -> char {
+        let ch = self.last_char();
+        self.next();
+        ch
+    }
+
+    pub fn extract_if<P: FnOnce(char) -> bool>(&mut self, pred: P) -> Option<char> {
+        let ch = self.last_char();
+        match pred(ch) {
+            true => {
                 self.next();
-            }
+                Some(ch)
+            },
+            false => None,
         }
-
-        true
     }
 
     pub fn skip(&mut self) {
-        while !self.is_eof() && self.last_char().is_ascii_whitespace() {
-            self.next();
+        while let Some(ch) = self.look(0) {
+            match ch.is_ascii_whitespace() {
+                true => self.next(),
+                false => break,
+            };
         }
     }
 
     pub fn next(&mut self) -> bool {
-        match self.data.get(self.current_idx) {
+        match self.data.get(self.next_idx) {
             Some(ch) => {
                 self.location.update(*ch);
-                self.current_idx += 1;
+                self.next_idx += 1;
                 true
             }
             None => {
-                self.current_idx += 1;
+                self.next_idx += 1;
                 false
             },
         }
     }
 
-    pub fn set_position(&mut self, position: usize) {
-        self.current_idx = position;
+    pub fn set_position(&mut self, position: (usize, Location)) {
+        self.next_idx = position.0;
+        self.location = position.1;
     }
 
-    pub fn position(&self) -> usize {
-        self.current_idx
+    pub fn position(&self) -> (usize, Location) {
+        (self.next_idx, self.location.clone())
     }
 
     pub fn lines(&self) -> &[String] {
@@ -153,7 +153,7 @@ impl TextStream {
 
     #[track_caller]
     pub fn last_char(&self) -> char {
-        self.look(0).expect("Unexpected end of source")
+        self.look(0).expect(&format!("Unexpected end of stream of source '{}'", self.location.source_name))
     }
 
     pub fn location(&self) -> &Location {
@@ -161,6 +161,6 @@ impl TextStream {
     }
 
     pub fn is_eof(&self) -> bool {
-        (self.current_idx - 1) >= self.data.len()
+        self.look(0).is_none()
     }
 }

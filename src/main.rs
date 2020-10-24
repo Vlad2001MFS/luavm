@@ -35,6 +35,12 @@ fn run_tests(test_dir_path: &str) {
         let test_file_name = path.file_name().unwrap().to_str().unwrap();
         let test_file_stem = path.file_stem().unwrap().to_str().unwrap();
 
+        //if test_file_stem != "" { continue; }
+
+        if test_file_stem == "" {
+            skip_test = false;
+        }
+
         if !skip_test {
             if let Some(Some("lua")) = path.extension().map(|ext| ext.to_str()) {
                 let test_source_bytes = std::fs::read(&path).expect(&format!("Failed to load test '{}'", path.to_string_lossy()));
@@ -65,10 +71,6 @@ fn run_tests(test_dir_path: &str) {
 
                 println!("### TEST: {} --- OK ###", test_file_name);
             }
-        }
-
-        if test_file_stem == "" {
-            skip_test = false;
         }
     }
 }

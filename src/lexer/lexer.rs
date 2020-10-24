@@ -192,6 +192,7 @@ impl Lexer {
 
     fn process(&mut self) {
         self.stream.skip();
+        
         while !self.stream.is_eof() {
             self.begin_location = self.stream.location().clone();
 
@@ -205,34 +206,31 @@ impl Lexer {
                 continue;
             }
             else {
-                match self.stream.look(0) {
-                    Some(ch) => self.error(&format!("Unknown character '{}'", ch)),
-                    None => self.error(&format!("Unexpected end of source"))
-                }
+                let ch = self.stream.extract();
+                self.error(&format!("Unknown character '{}'", ch))
             }
         }
     }
 
     fn try_process_block(&mut self) -> Option<String> {
         let saved_position_stream = self.stream.position();
-        if self.stream.look_for_str("[", 0, false, true) {
+
+        if self.eat_char('[') {
             let mut depth = 0;
-            while self.stream.look_for_str("=", 0, false, true) {
+            while self.eat_char('=') {
                 depth += 1;
             }
-            if !self.stream.look_for_str("[", 0, false, true) {
+
+            if !self.eat_char('[') {
                 self.stream.set_position(saved_position_stream);
                 return None;
             }
 
             let closing_brackets = format!("]{}]", "=".repeat(depth));
             let mut content = String::new();
-            while !self.stream.look_for_str(&closing_brackets, 0, false, true) {
-                content.push(self.stream.last_char());
 
-                if !self.stream.next() {
-                    break;
-                }
+            while !self.eat_string(&closing_brackets) {
+                content.push(self.stream.extract());
             }
 
             return Some(content);
@@ -241,34 +239,25 @@ impl Lexer {
     }
 
     fn try_process_comment(&mut self) -> bool {
-        if self.stream.look_for_str("--", 0, false, true) {
-            return match self.try_process_block() {
-                Some(_) => true,
-                None => {
-                    while self.stream.last_char() != '\n' {
-                        if !self.stream.next() {
-                            break;
-                        }
-                    }
-                    true
+        if self.eat_string("--") {
+            if self.try_process_block().is_none() {
+                while !self.eat_char('\n') {
+                    self.stream.next();
                 }
-            };
+            }
+            return true
         }
         false
     }
 
     fn try_process_short_string_literal(&mut self) -> bool {
-        if self.stream.last_char() == '\'' || self.stream.last_char() == '"' {
-            let str_open_symbol = self.stream.last_char();
+        if let Some(str_open_symbol) = self.eat_char_any_of(&['\'', '"']) {
             let mut string = String::new();
 
-            while self.stream.next() && self.stream.last_char() != str_open_symbol {
-                if self.stream.last_char() == '\\' {
-                    self.stream.next();
-                    match self.stream.last_char() {
-                        '\n' => {
-                            self.stream.next();
-                        },
+            while !self.eat_char(str_open_symbol) {
+                if self.eat_char('\\') {
+                    match self.stream.extract() {
+                        '\n' => (),
                         'a' => string.push(0x07 as char),
                         'b' => string.push(0x07 as char),
                         'f' => string.push(0x0C as char),
@@ -279,100 +268,74 @@ impl Lexer {
                         '\\' => string.push('\\'),
                         '\"' => string.push('\"'),
                         '\'' => string.push('\''),
-                        'z' => {
-                            if let Some(next_ch) = self.stream.look(1) {
-                                if next_ch.is_ascii_whitespace() {
-                                    while self.stream.next() {
-                                        if let Some(next_ch) = self.stream.look(1) {
-                                            if !next_ch.is_ascii_whitespace() {
-                                                break;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        },
+                        'z' => while let Some(_) = self.stream.extract_if(|ch| ch.is_ascii_whitespace()) {},
                         'u' => {
-                            self.stream.next();
-                            if self.stream.look_for_str("{", 0, false, false) {
-                                let mut num = 0;
+                            self.expect_char('{');
 
-                                let mut count = 0;
-                                while self.stream.look(count + 1).map_or(false, |ch| ch != '}') {
-                                    count += 1;
-                                }
+                            let mut number = String::new();
+                            while let Some(ch) = self.stream.extract_if(|ch| ch.is_digit(16)) {
+                                number.push(ch);
+                            }
 
-                                for _ in 0..count {
-                                    if self.stream.next() {
-                                        if let Some(digit) = self.stream.last_char().to_digit(16) {
-                                            num += digit*16_u32.pow((count - 1) as u32);
-                                        }
-                                        else {
-                                            self.error("Invalid escaped byte in hexadecimal representation")
-                                        }
-                                    }
+                            self.expect_char('}');
 
-                                    count -= 1;
-                                }
-                                self.stream.next();
+                            let num = match u32::from_str_radix(&number, 16) {
+                                Ok(num) => num,
+                                Err(err) => self.error(&err.to_string()),
+                            };
 
-                                match std::char::from_u32(num) {
-                                    Some(num) => string.push(num),
-                                    None => string.push(std::char::REPLACEMENT_CHARACTER),
-                                }
+                            match std::char::from_u32(num) {
+                                Some(num) => string.push(num),
+                                None => string.push(std::char::REPLACEMENT_CHARACTER),
                             }
                         }
-                        ch if ch.is_digit(10) => {
-                            let mut num = 0;
+                        'x' => {
+                            let mut number = String::new();
 
-                            for i in 0..3 {
-                                if let Some(digit) = self.stream.last_char().to_digit(10) {
-                                    num += digit*10_u32.pow(2 - i);
-
-                                    if i < 2 && self.stream.look(1).map_or(false, |ch| ch.is_digit(10)) {
-                                        self.stream.next();
-                                    }
-                                    else {
-                                        num /= 10_u32.pow(2 - i);
-                                        break;
-                                    }
-                                }
+                            for _ in 0..2 {
+                                match self.stream.extract_if(|ch| ch.is_digit(16)) {
+                                    Some(ch) => number.push(ch),
+                                    None => self.error("Invalid escaped byte in hexadecimal representation"),
+                                };
                             }
 
-                            if num < 256 {
-                                string.push(num as u8 as char);
-                            }
-                            else {
-                                self.error(&format!("Invalid value of escaped byte '{}'", num));
-                            }
-                        }
-                        ch if ch == 'x' => {
-                            let mut num = 0;
-
-                            for i in 0..2 {
-                                if self.stream.next() {
-                                    if let Some(digit) = self.stream.last_char().to_digit(16) {
-                                        num += digit*16_u32.pow(1 - i);
-                                    }
-                                    else {
-                                        self.error("Invalid escaped byte in hexadecimal representation")
-                                    }
-                                }
-                            }
+                            let num = match u32::from_str_radix(&number, 16) {
+                                Ok(num) => num,
+                                Err(err) => self.error(&err.to_string()),
+                            };
 
                             string.push(num as u8 as char);
                         }
+                        ch if ch.is_digit(10) => {
+                            let mut number = ch.to_string();
+
+                            for _ in 0..2 {
+                                match self.stream.extract_if(|ch| ch.is_digit(10)) {
+                                    Some(ch) => number.push(ch),
+                                    None => break,
+                                }
+                            }
+
+                            let num = match number.parse::<u32>() {
+                                Ok(num) => num,
+                                Err(err) => self.error(&err.to_string()),
+                            };
+
+                            match num < 256 {
+                                true => string.push(num as u8 as char),
+                                false => self.error(&format!("Invalid value of escaped byte '{}'", num)),
+                            };
+                        }
                         _ => self.error("Unknown escaped sequence"),
-                    }
+                    };
                 }
-                else if !self.stream.last_char().is_ascii_control() {
-                    string.push(self.stream.last_char());
+                else if let Some(ch) = self.stream.extract_if(|ch| !ch.is_ascii_control()) {
+                    string.push(ch);
                 }
                 else {
-                    self.error("Short string literal can not contain unescaped control symbols");
+                    self.error("Short string literal can not contain unescaped control symbols")
                 }
             }
-            self.stream.next();
             
             self.add_token(Token::String(string));
             return true;
@@ -394,11 +357,11 @@ impl Lexer {
     }
 
     fn try_process_identifier(&mut self) -> bool {
-        if self.stream.last_char().is_alphabetic() || self.stream.last_char() == '_' {
-            let mut name = self.stream.last_char().to_string();
+        if let Some(ch) = self.stream.extract_if(|ch| ch.is_alphabetic() || ch == '_') {
+            let mut name = ch.to_string();
 
-            while self.stream.next() && (self.stream.last_char().is_alphanumeric() || self.stream.last_char() == '_') {
-                name.push(self.stream.last_char());
+            while let Some(ch) = self.stream.extract_if(|ch| ch.is_alphanumeric() || ch == '_') {
+                name.push(ch);
             }
 
             self.add_token(match name.as_str() {
@@ -438,159 +401,107 @@ impl Lexer {
     }
 
     fn try_process_number(&mut self) -> bool {
-        if self.stream.look_for_str("0x", 0, false, false) {
-            let mut number = "0x".to_string();
-            let mut has_digit = false;
-            let mut has_dot = false;
-            let mut has_exponent = false;
+        if self.eat_string("0x") || self.eat_string("0X") {
+            let mut number = String::new();
+            let mut is_float = false;
+
+            while let Some(ch) = self.stream.extract_if(|ch| ch.is_digit(16)) {
+                number.push(ch);
+            }
+
+            if !self.match_string("..") && self.eat_char('.') {
+                is_float = true;
+                number.push('.');
+            }
+
             let mut fractional_digits_count = 0;
-
-            self.stream.next();
-            while self.stream.next() {
-                if self.stream.last_char().is_digit(16) {
-                    has_digit = true;
-
-                    if fractional_digits_count < 13 {
-                        number.push(self.stream.last_char());
-                    }
-                    
-                    if has_dot {
-                        fractional_digits_count += 1;
-                    }
-                }
-                else if self.stream.last_char() == '.' && !self.stream.look_for_str("..", 0, false, false) {
-                    if has_dot {
-                        self.error("Invalid hexadecimal number. More than 1 dot in a number");
-                    }
-
-                    has_dot = true;
-                    number.push(self.stream.last_char());
-                }
-                else if self.stream.last_char().eq_ignore_ascii_case(&'p') {
-                    if has_exponent {
-                        self.error("Invalid hexadecimal number. More than 1 exponent in a number");
-                    }
-                    if !has_digit {
-                        self.error("Invalid hexadecimal number. The exponent requires at least one digit in a number");
-                    }
-
-                    has_exponent = true;
-                    number.push(self.stream.last_char());
-
-                    if self.stream.look_for_str("-", 1, false, true) {
-                        number.push('-');
-                    }
-                    else if self.stream.look_for_str("+", 1, false, true) {
-                        number.push('+');
-                    }
-                }
-                else {
-                    break;
+            while let Some(ch) = self.stream.extract_if(|ch| ch.is_digit(16)) {
+                if fractional_digits_count < 13 {
+                    fractional_digits_count += 1;
+                    number.push(ch);
                 }
             }
+
+            if let Some(_) = self.eat_char_any_of(&['p', 'P']) {
+                if !is_float {
+                    is_float = true;
+                    number.push('.');
+                }
+                number.push('p');
+
+                if let Some(ch) = self.eat_char_any_of(&['+', '-']) {
+                    number.push(ch);
+                }
+
+                while let Some(ch) = self.stream.extract_if(|ch| ch.is_digit(10)) {
+                    number.push(ch);
+                }
+            }
+            else if is_float {
+                number.push_str("p0");
+            }
             
-            self.add_token(match has_dot {
+            self.add_token(match is_float {
                 true => {
-                    let number = match has_exponent {
-                        true => hexf::parse_hexf64(&number, false),
-                        false => hexf::parse_hexf64(&(number + "p0"), false),
-                    };
-                    match number {
+                    match hexf::parse_hexf64(&("0x".to_string() + &number), false) {
                         Ok(number) => Token::Number(number),
-                        Err(err) => {
-                            self.error(&format!("Invalid float hexadecimal number: {}", err));
-                            unreachable!();
-                        }
+                        Err(err) => self.error(&format!("Invalid float hexadecimal number: {}", err)),
                     }
                 }
                 false => {
-                    match has_exponent {
-                        true => {
-                            let insert_dot_idx = number.find(|a: char| a.eq_ignore_ascii_case(&'p')).unwrap();
-                            number.insert(insert_dot_idx, '.');
-                            match hexf::parse_hexf64(&number, false) {
-                                Ok(number) => Token::Number(number),
-                                Err(err) => {
-                                    self.error(&format!("Invalid float hexadecimal number: {}", err));
-                                    unreachable!();
-                                }
+                    match i64::from_str_radix(&number, 16) {
+                        Ok(number) => Token::IntNumber(number),
+                        Err(_) => {
+                            match u128::from_str_radix(&number, 16) {
+                                Ok(number) => Token::IntNumber(number as i64),
+                                Err(err) => self.error(&format!("Invalid hexadecimal number: {}", err)),
                             }
-                        },
-                        false => {
-                            match i64::from_str_radix(&number.trim_start_matches("0x"), 16) {
-                                Ok(number) => Token::IntNumber(number),
-                                Err(_) => {
-                                    match u128::from_str_radix(&number.trim_start_matches("0x"), 16) {
-                                        Ok(number) => Token::IntNumber(number as i64),
-                                        Err(err) => {
-                                            self.error(&format!("Invalid hexadecimal number: {}", err));
-                                            unreachable!();
-                                        }
-                                    }
-                                }
-                            }
-                        },
+                        }
                     }
                 }
             });
 
             return true;
         }
-        else if self.stream.look(0).map_or(false, |a| a.is_digit(10)) || (self.stream.look_for_str(".", 0, false, false) && self.stream.look(1).map_or(false, |a| a.is_digit(10))) {
-            let mut number = match self.stream.look_for_str(".", 0, false, false) {
-                true => "0.".to_string(),
-                false => self.stream.last_char().to_string(),
-            };
-            let mut has_dot = self.stream.look_for_str(".", 0, false, false);
-            let mut has_exponent = false;
+        else if self.stream.look_if(0, |ch| ch.is_digit(10)).is_some()
+             || self.stream.look_if(0, |ch| ch == '.').is_some() && self.stream.look_if(1, |ch| ch.is_digit(10)).is_some() {
+            let mut number = String::new();
+            let mut is_float = false;
+
+            while let Some(ch) = self.stream.extract_if(|ch| ch.is_digit(10)) {
+                number.push(ch);
+            }
+
+            if !self.match_string("..") && self.eat_char('.') {
+                is_float = true;
+                number.push('.');
+            }
+
             let mut fractional_digits_count = 0;
-
-            while self.stream.next() {
-                if self.stream.last_char().is_digit(10) {
-                    if fractional_digits_count < 13 {
-                        number.push(self.stream.last_char());
-                    }
-                    
-                    if has_dot {
-                        fractional_digits_count += 1;
-                    }
-                }
-                else if self.stream.last_char() == '.' && !self.stream.look_for_str("..", 0, false, false) {
-                    if has_dot {
-                        self.error("Invalid number. More than 1 dot in a number");
-                    }
-
-                    has_dot = true;
-                    number.push(self.stream.last_char());
-                }
-                else if self.stream.last_char().eq_ignore_ascii_case(&'e') {
-                    if has_exponent {
-                        self.error("Invalid number. More than 1 exponent in a number");
-                    }
-
-                    has_exponent = true;
-                    number.push(self.stream.last_char());
-
-                    if self.stream.look_for_str("-", 1, false, true) {
-                        number.push('-');
-                    }
-                    else if self.stream.look_for_str("+", 1, false, true) {
-                        number.push('+');
-                    }
-                }
-                else {
-                    break;
+            while let Some(ch) = self.stream.extract_if(|ch| ch.is_digit(10)) {
+                if fractional_digits_count < 13 {
+                    fractional_digits_count += 1;
+                    number.push(ch);
                 }
             }
 
-            self.add_token(match has_dot || has_exponent {
+            if let Some(_) = self.eat_char_any_of(&['e', 'E']) {
+                number.push('e');
+
+                if let Some(ch) = self.eat_char_any_of(&['+', '-']) {
+                    number.push(ch);
+                }
+
+                while let Some(ch) = self.stream.extract_if(|ch| ch.is_digit(10)) {
+                    number.push(ch);
+                }
+            }
+
+            self.add_token(match is_float {
                 true => {
                     let num = match number.parse::<f64>() {
                         Ok(number) => number,
-                        Err(err) => {
-                            self.error(&format!("Invalid float number: {}", err));
-                            unreachable!();
-                        }
+                        Err(err) => self.error(&format!("Invalid float number: {}", err)),
                     };
                     Token::Number(num)
                 }
@@ -600,10 +511,7 @@ impl Lexer {
                         Err(_) => {
                             match number.parse::<f64>() {
                                 Ok(number) => Token::Number(number),
-                                Err(err) => {
-                                    self.error(&format!("Invalid number: {}", err));
-                                    unreachable!();
-                                }
+                                Err(err) => self.error(&format!("Invalid number: {}", err)),
                             }
                         }
                     }
@@ -615,145 +523,193 @@ impl Lexer {
     }
 
     fn try_process_symbolic_tokens(&mut self) -> bool {
-        if self.stream.look_for_str("...", 0, false, true) {
+        if self.eat_string("...") {
             self.add_token(Token::Dots3);
             return true;
         }
-        else if self.stream.look_for_str("<<", 0, false, true) {
+        else if self.eat_string("<<") {
             self.add_token(Token::ShiftLeft);
             return true;
         }
-        else if self.stream.look_for_str(">>", 0, false, true) {
+        else if self.eat_string(">>") {
             self.add_token(Token::ShiftRight);
             return true;
         }
-        else if self.stream.look_for_str("//", 0, false, true) {
+        else if self.eat_string("//") {
             self.add_token(Token::IDiv);
             return true;
         }
-        else if self.stream.look_for_str("==", 0, false, true) {
+        else if self.eat_string("==") {
             self.add_token(Token::Equal);
             return true;
         }
-        else if self.stream.look_for_str("~=", 0, false, true) {
+        else if self.eat_string("~=") {
             self.add_token(Token::NotEqual);
             return true;
         }
-        else if self.stream.look_for_str("<=", 0, false, true) {
+        else if self.eat_string("<=") {
             self.add_token(Token::LessEqual);
             return true;
         }
-        else if self.stream.look_for_str(">=", 0, false, true) {
+        else if self.eat_string(">=") {
             self.add_token(Token::GreaterEqual);
             return true;
         }
-        else if self.stream.look_for_str("::", 0, false, true) {
+        else if self.eat_string("::") {
             self.add_token(Token::DoubleColon);
             return true;
         }
-        else if self.stream.look_for_str("..", 0, false, true) {
+        else if self.eat_string("..") {
             self.add_token(Token::Dots2);
             return true;
         }
-        else if self.stream.look_for_str("+", 0, false, true) {
+        else if self.eat_char('+') {
             self.add_token(Token::Add);
             return true;
         }
-        else if self.stream.look_for_str("-", 0, false, true) {
+        else if self.eat_char('-') {
             self.add_token(Token::Sub);
             return true;
         }
-        else if self.stream.look_for_str("*", 0, false, true) {
+        else if self.eat_char('*') {
             self.add_token(Token::Mul);
             return true;
         }
-        else if self.stream.look_for_str("/", 0, false, true) {
+        else if self.eat_char('/') {
             self.add_token(Token::Div);
             return true;
         }
-        else if self.stream.look_for_str("%", 0, false, true) {
+        else if self.eat_char('%') {
             self.add_token(Token::Mod);
             return true;
         }
-        else if self.stream.look_for_str("^", 0, false, true) {
+        else if self.eat_char('^') {
             self.add_token(Token::Pow);
             return true;
         }
-        else if self.stream.look_for_str("#", 0, false, true) {
+        else if self.eat_char('#') {
             self.add_token(Token::Len);
             return true;
         }
-        else if self.stream.look_for_str("&", 0, false, true) {
+        else if self.eat_char('&') {
             self.add_token(Token::BitAnd);
             return true;
         }
-        else if self.stream.look_for_str("~", 0, false, true) {
+        else if self.eat_char('~') {
             self.add_token(Token::BitNotXor);
             return true;
         }
-        else if self.stream.look_for_str("|", 0, false, true) {
+        else if self.eat_char('|') {
             self.add_token(Token::BitOr);
             return true;
         }
-        else if self.stream.look_for_str("<", 0, false, true) {
+        else if self.eat_char('<') {
             self.add_token(Token::LessThan);
             return true;
         }
-        else if self.stream.look_for_str(">", 0, false, true) {
+        else if self.eat_char('>') {
             self.add_token(Token::GreaterThan);
             return true;
         }
-        else if self.stream.look_for_str("=", 0, false, true) {
+        else if self.eat_char('=') {
             self.add_token(Token::Assign);
             return true;
         }
-        else if self.stream.look_for_str("(", 0, false, true) {
+        else if self.eat_char('(') {
             self.add_token(Token::LeftParen);
             return true;
         }
-        else if self.stream.look_for_str(")", 0, false, true) {
+        else if self.eat_char(')') {
             self.add_token(Token::RightParen);
             return true;
         }
-        else if self.stream.look_for_str("{", 0, false, true) {
+        else if self.eat_char('{') {
             self.add_token(Token::LeftBrace);
             return true;
         }
-        else if self.stream.look_for_str("}", 0, false, true) {
+        else if self.eat_char('}') {
             self.add_token(Token::RightBrace);
             return true;
         }
-        else if self.stream.look_for_str("[", 0, false, true) {
+        else if self.eat_char('[') {
             self.add_token(Token::LeftBracket);
             return true;
         }
-        else if self.stream.look_for_str("]", 0, false, true) {
+        else if self.eat_char(']') {
             self.add_token(Token::RightBracket);
             return true;
         }
-        else if self.stream.look_for_str(";", 0, false, true) {
+        else if self.eat_char(';') {
             self.add_token(Token::SemiColon);
             return true;
         }
-        else if self.stream.look_for_str(":", 0, false, true) {
+        else if self.eat_char(':') {
             self.add_token(Token::Colon);
             return true;
         }
-        else if self.stream.look_for_str(",", 0, false, true) {
+        else if self.eat_char(',') {
             self.add_token(Token::Comma);
             return true;
         }
-        else if self.stream.look_for_str(".", 0, false, true) {
+        else if self.eat_char('.') {
             self.add_token(Token::Dot);
             return true;
         }
         false
     }
 
+    fn eat_char(&mut self, expected_char: char) -> bool {
+        self.stream.extract_if(|ch| ch == expected_char).is_some()
+    }
+
+    fn eat_char_any_of(&mut self, expected_chars: &[char]) -> Option<char> {
+        for ch in expected_chars.iter().copied() {
+            if self.eat_char(ch) {
+                return Some(ch);
+            }
+        }
+        None
+    }
+
+    fn eat_string(&mut self, expected_string: &str) -> bool {
+        let saved_stream_pos = self.stream.position();
+
+        for ch in expected_string.chars() {
+            if !self.eat_char(ch) {
+                self.stream.set_position(saved_stream_pos);
+                return false;
+            }
+        }
+
+        true
+    }
+
+    fn match_string(&mut self, expected_string: &str) -> bool {
+        for (i, expected_ch) in expected_string.chars().enumerate() {
+            match self.stream.look(i) {
+                Some(ch) if ch != expected_ch => return false,
+                Some(_) => (),
+                None => return false,
+            };
+        }
+
+        true
+    }
+
     #[track_caller]
-    fn error(&self, desc: &str) {
+    fn expect_char(&mut self, expected_char: char) -> char {
+        let ch = self.stream.last_char();
+        if ch != expected_char {
+            self.error(&format!("Expected '{}' instead '{}", expected_char, ch))
+        }
+        self.stream.next();
+        ch
+    }
+
+    #[track_caller]
+    fn error<T>(&self, desc: &str) -> T {
         fn build_pointer_str(loc: &Location, len: usize) -> String {
-            match loc.column() > 0 {
+            match loc.column() > 1 {
                 true => " ".repeat(loc.column() - 1) + &"^".repeat(len),
                 false => "^".repeat(len),
             }

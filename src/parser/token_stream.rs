@@ -47,13 +47,10 @@ impl TokenStream {
     }
 
     pub fn is_eof(&self) -> bool {
-        self.current_idx - 1 >= self.data.len()
+        self.look_token_info(0).is_none()
     }
 
     pub fn last_token_info(&self) -> Option<&TokenInfo> {
-        match self.data.get(self.current_idx - 1) {
-            Some(token_info) => Some(token_info),
-            None => self.data.last(),
-        }
+        self.look_token_info(0).or(self.data.last())
     }
 }

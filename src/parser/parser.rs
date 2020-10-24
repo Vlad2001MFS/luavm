@@ -104,23 +104,24 @@ impl Parser {
     }
 
     fn parse_block(&mut self, ending_token: Option<&[Token]>) -> (Block, Option<Token>) {
-        let mut result = Block {
+        let mut block = Block {
             statements: Vec::new(),
             return_statement: None,
         };
 
         let mut found_ending_token = None;
+
         while !self.stream.is_eof() {
             if let Some(statement) = self.try_parse_statement() {
-                result.statements.push(statement);
+                block.statements.push(statement);
             }
             else if let Some(return_statement) = self.try_parse_return_statement() {
-                match result.return_statement {
-                    None => result.return_statement = Some(return_statement),
+                match block.return_statement {
+                    None => block.return_statement = Some(return_statement),
                     Some(_) => self.error("Expected an end of block after first return"),
                 }
             }
-            else if let Some(Some(ending_token)) = ending_token.map(|tokens| self.eat_any_of(tokens)) {
+            else if let Some(ending_token) = ending_token.and_then(|tokens| self.eat_any_of(tokens)) {
                 found_ending_token = Some(ending_token);
                 break;
             }
@@ -135,7 +136,7 @@ impl Parser {
             }
         }
 
-        (result, found_ending_token)
+        (block, found_ending_token)
     }
 
     fn try_parse_statement(&mut self) -> Option<Statement> {
