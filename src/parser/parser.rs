@@ -57,8 +57,8 @@ use crate::{
         ast::{
             Chunk, Block,
             Statement, ReturnStatement,
-            Expression, FunctionBody, Suffix, CallArgs, TableField,
-            ConditionalBlock, LocalVariableAttrib,
+            Expression, FunctionBody, Suffixed, Suffix, CallArgs, Table, TableField,
+            ConditionalBlock, LocalVariable, LocalVariableAttrib,
         },
     },
 };
@@ -76,7 +76,7 @@ macro_rules! try_parse_expression {
                                     left_expr: Box::new(left_expr),
                                     right_expr: Box::new(right_expr),
                                 }),
-                                None => self.error_none("Expected an expression"),
+                                None => self.error("Expected an expression"),
                             }
                         },
                         _ => Some(left_expr),
@@ -126,13 +126,13 @@ impl Parser {
                 break;
             }
             else {
-                self.error("Unknown syntax construction");
+                self.error("Unknown syntax construction")
             }
         }
 
         if let Some(_) = ending_token {
             if found_ending_token.is_none() {
-                self.error(&format!("Expected the block ending token"));
+                self.error(&format!("Expected the block ending token"))
             }
         }
 
@@ -142,48 +142,19 @@ impl Parser {
     fn try_parse_statement(&mut self) -> Option<Statement> {
         while self.eat(Token::SemiColon) {}
 
-        if let Some(assignment) = self.try_parse_assignment_statement() {
-            Some(assignment)
-        }
-        else if let Some(function_call) = self.try_parse_function_call_statement() {
-            Some(function_call)
-        }
-        else if let Some(label) = self.try_parse_label_statement() {
-            Some(label)
-        }
-        else if let Some(break_) = self.try_parse_break_statement() {
-            Some(break_)
-        }
-        else if let Some(goto) = self.try_parse_goto_statement() {
-            Some(goto)
-        }
-        else if let Some(block) = self.try_parse_block_statement() {
-            Some(block)
-        }
-        else if let Some(while_) = self.try_parse_while_statement() {
-            Some(while_)
-        }
-        else if let Some(repeat_until) = self.try_parse_repeat_until_statement() {
-            Some(repeat_until)
-        }
-        else if let Some(if_else) = self.try_parse_if_else_statement() {
-            Some(if_else)
-        }
-        else if let Some(for_) = self.try_parse_for_statement() {
-            Some(for_)
-        }
-        else if let Some(function_definition) = self.try_parse_function_definition_statement() {
-            Some(function_definition)
-        }
-        else if let Some(local_function_definition) = self.try_parse_local_function_definition_statement() {
-            Some(local_function_definition)
-        }
-        else if let Some(local_variables) = self.try_parse_local_variables_statement() {
-            Some(local_variables)
-        }
-        else {
-            None
-        }
+        self.try_parse_assignment_statement()
+        .or_else(|| self.try_parse_function_call_statement())
+        .or_else(|| self.try_parse_label_statement())
+        .or_else(|| self.try_parse_break_statement())
+        .or_else(|| self.try_parse_goto_statement())
+        .or_else(|| self.try_parse_block_statement())
+        .or_else(|| self.try_parse_while_statement())
+        .or_else(|| self.try_parse_repeat_until_statement())
+        .or_else(|| self.try_parse_if_else_statement())
+        .or_else(|| self.try_parse_for_statement())
+        .or_else(|| self.try_parse_function_definition_statement())
+        .or_else(|| self.try_parse_local_function_definition_statement())
+        .or_else(|| self.try_parse_local_variables_statement())
     }
 
     fn try_parse_assignment_statement(&mut self) -> Option<Statement> {
@@ -191,46 +162,28 @@ impl Parser {
             Some(var_list) => {
                 self.expect(Token::Assign);
                 
-                match self.try_parse_expression_list() {
-                    Some(expr_list) => Some(Statement::Assignment {
-                        var_list,
-                        expr_list,
-                    }),
-                    None => self.error_none("Expected an expression list"),
-                }
+                let expr_list = match self.try_parse_expression_list() {
+                    Some(expr_list) => expr_list,
+                    None => self.error("Expected an expression list"),
+                };
+
+                Some(Statement::Assignment {
+                    var_list,
+                    expr_list,
+                })
             }
             None => None,
         }
     }
 
-    fn try_parse_variables_list(&mut self) -> Option<Vec<Expression>> {
+    fn try_parse_variables_list(&mut self) -> Option<Vec<Suffixed>> {
         let saved_stream_pos = self.stream.position();
         
         let mut vars = Vec::new();
-        loop {
-            match self.stream.look_token(0) {
-                Some(Token::Comma) => {
-                    match vars.is_empty() {
-                        true => self.error_bool("Expected a variable"),
-                        false => self.stream.next()
-                    }
-                },
-                _ => {
-                    match vars.is_empty() {
-                        true => true,
-                        false => break,
-                    }
-                },
-            };
-
-            match self.try_parse_suffixed_expression() {
-                Some(Expression::Named(name)) => vars.push(Expression::Named(name)),
-                Some(Expression::Suffixed{expr, suffixes}) if matches!(suffixes.last().unwrap(), Suffix::Index(_)) => {
-                    vars.push(Expression::Suffixed {
-                        expr,
-                        suffixes,
-                    })
-                }
+        while vars.is_empty() || self.eat(Token::Comma) {
+            match self.try_parse_suffixed() {
+                Some(suffixed) if matches!(suffixed.suffixes.last(), Some(Suffix::Index(_)) | None) => vars.push(suffixed),
+                Some(_) if !vars.is_empty() => self.error("Function or method call is not a variable"),
                 _ => {
                     match vars.is_empty() {
                         true => {
@@ -252,12 +205,9 @@ impl Parser {
     fn try_parse_function_call_statement(&mut self) -> Option<Statement> {
         let saved_stream_pos = self.stream.position();
 
-        match self.try_parse_suffixed_expression() {
-            Some(Expression::Suffixed{expr, suffixes}) if matches!(suffixes.last().unwrap(), Suffix::CallFree(_) | Suffix::CallMethod{name: _, args: _}) => {
-                Some(Statement::FunctionCall(Expression::Suffixed{
-                    expr,
-                    suffixes
-                }))
+        match self.try_parse_suffixed() {
+            Some(suffixed) if matches!(suffixed.suffixes.last(), Some(Suffix::CallFree(_)) | Some(Suffix::CallMethod{name: _, args: _})) => {
+                Some(Statement::FunctionCall(suffixed))
             }
             _ => {
                 self.stream.set_position(saved_stream_pos);
@@ -270,7 +220,7 @@ impl Parser {
         match self.eat(Token::DoubleColon) {
             true => {
                 let name = self.expect_name();
-                self.expect(Token::DoubleColon);
+                self.expect(Token::DoubleColon);  
                 Some(Statement::Label(name))
             }
             false => None,
@@ -286,14 +236,20 @@ impl Parser {
 
     fn try_parse_goto_statement(&mut self) -> Option<Statement> {
         match self.eat(Token::Goto) {
-            true => Some(Statement::Goto(self.expect_name())),
+            true => {
+                let label_name = self.expect_name();
+                Some(Statement::Goto(label_name))
+            }
             false => None,
         }
     }
 
     fn try_parse_block_statement(&mut self) -> Option<Statement> {
         match self.eat(Token::Do) {
-            true => Some(Statement::Block(self.parse_block(Some(&[Token::End])).0)),
+            true => {
+                let (block, _) = self.parse_block(Some(&[Token::End]));
+                Some(Statement::Block(block))
+            }
             false => None,
         }
     }
@@ -301,18 +257,20 @@ impl Parser {
     fn try_parse_while_statement(&mut self) -> Option<Statement> {
         match self.eat(Token::While) {
             true => {
-                match self.try_parse_expression() {
-                    Some(cond) => {
-                        match self.try_parse_block_statement() {
-                            Some(Statement::Block(block)) => Some(Statement::While {
-                                cond,
-                                block,
-                            }),
-                            _ => self.error_none("Expected a block"),
-                        }
-                    }
-                    None => self.error_none("Expected an expression")
-                }
+                let condition = match self.try_parse_expression() {
+                    Some(expr) => expr,
+                    None => self.error("Expected a conditional expression")
+                };
+
+                let block = match self.try_parse_block_statement() {
+                    Some(Statement::Block(block)) => block,
+                    _ => self.error("Expected a block"),
+                };
+
+                Some(Statement::While {
+                    condition,
+                    block,
+                })
             }
             false => None,
         }
@@ -321,14 +279,16 @@ impl Parser {
     fn try_parse_repeat_until_statement(&mut self) -> Option<Statement> {
         match self.eat(Token::Repeat) {
             true => {
-                let block = self.parse_block(Some(&[Token::Until])).0;
-                match self.try_parse_expression() {
-                    Some(cond) => Some(Statement::RepeatUntil {
-                        cond,
-                        block,
-                    }),
-                    None => self.error_none("Expected an expression"),
-                }
+                let (block, _) = self.parse_block(Some(&[Token::Until]));
+                let condition = match self.try_parse_expression() {
+                    Some(expr) => expr,
+                    None => self.error("Expected a conditional expression"),
+                };
+
+                Some(Statement::RepeatUntil {
+                    condition,
+                    block,
+                })
             }
             false => None,
         }
@@ -339,7 +299,7 @@ impl Parser {
             true => {
                 let if_cond = match self.try_parse_expression() {
                     Some(expr) => expr,
-                    None => self.error_type("Expected a conditional expression"),
+                    None => self.error("Expected a conditional expression"),
                 };
                 self.expect(Token::Then);
                 
@@ -349,7 +309,7 @@ impl Parser {
                 while let Some(Token::ElseIf) = ending_token {
                     let elseif_cond = match self.try_parse_expression() {
                         Some(expr) => expr,
-                        None => self.error_type("Expected a conditional expression"),
+                        None => self.error("Expected a conditional expression"),
                     };
                     self.expect(Token::Then);
 
@@ -357,23 +317,26 @@ impl Parser {
                     ending_token = elseif_ending_token;
 
                     elseif_parts.push(ConditionalBlock {
-                        cond_expr: elseif_cond,
+                        condition: elseif_cond,
                         block: elseif_block,
                     });
                 };
 
-                let else_block = match ending_token {
-                    Some(Token::Else) => Some(self.parse_block(Some(&[Token::End])).0),
+                let else_part = match ending_token {
+                    Some(Token::Else) => {
+                        let (block, _) = self.parse_block(Some(&[Token::End]));
+                        Some(block)
+                    }
                     _ => None,
                 };
 
                 Some(Statement::IfElse {
                     if_part: ConditionalBlock {
-                        cond_expr: if_cond,
+                        condition: if_cond,
                         block: if_block,
                     },
                     elseif_parts,
-                    else_part: else_block,
+                    else_part,
                 })
             }
             false => None,
@@ -383,69 +346,73 @@ impl Parser {
     fn try_parse_for_statement(&mut self) -> Option<Statement> {
         match self.eat(Token::For) {
             true => {
-                let varnames = match self.try_parse_name_list(false) {
+                let var_names = match self.try_parse_name_list(false) {
                     Some(name_list) => name_list.0,
-                    None => self.error_type("Expected a variable name"),
+                    None => self.error("Expected a variable name"),
                 };
 
                 if self.eat(Token::Assign) {
-                    if varnames.len() > 1 {
-                        self.error("Initial value may be only one variable");
+                    if var_names.len() > 1 {
+                        self.error("Initial value may declare only one variable")
                     }
 
                     let initial_value = match self.try_parse_expression() {
                         Some(expr) => expr,
-                        None => self.error_type("Expected an initial value"),
+                        None => self.error("Expected an initial value expression"),
                     };
                     self.expect(Token::Comma);
     
                     let limit_value = match self.try_parse_expression() {
                         Some(expr) => expr,
-                        None => self.error_type("Expected an limit value"),
+                        None => self.error("Expected a limit value expression"),
                     };
     
                     let step_value = match self.eat(Token::Comma) {
                         true => {
                             match self.try_parse_expression() {
                                 Some(expr) => Some(expr),
-                                None => self.error_none("Expected an limit value"),
+                                None => self.error("Expected a step value expression"),
                             }
                         }
                         false => None,
                     };
     
-                    match self.try_parse_block_statement() {
-                        Some(Statement::Block(block)) => Some(Statement::For {
-                            varname: varnames.first().unwrap().clone(),
-                            initial_value,
-                            limit_value,
-                            step_value,
-                            block,
-                        }),
-                        _ => self.error_none("Expected a block"),
-                    }
+                    let block = match self.try_parse_block_statement() {
+                        Some(Statement::Block(block)) => block,
+                        _ => self.error("Expected a block"),
+                    };
+
+                    Some(Statement::For {
+                        var_name: var_names.first().unwrap().clone(),
+                        initial_value,
+                        limit_value,
+                        step_value,
+                        block,
+                    })
                 }
                 else if self.eat(Token::In) {
                     let expr_list = match self.try_parse_expression_list() {
                         Some(expr_list) => expr_list,
-                        None => self.error_type("Expected at least one expressions - iterator function"),
+                        None => self.error("Expected at least one expression - iterator function"),
                     };
 
                     if expr_list.len() > 3 {
-                        self.error("Too many expression");
+                        self.error("Too many expressions")
                     }
 
-                    match self.try_parse_block_statement() {
-                        Some(Statement::Block(block)) => Some(Statement::GeneralFor {
-                            varnames,
-                            expr_list,
-                            block,
-                        }),
-                        _ => self.error_none("Expected a block"),
-                    }
+                    let block = match self.try_parse_block_statement() {
+                        Some(Statement::Block(block)) => block,
+                        _ => self.error("Expected a block"),
+                    };
+
+                    Some(Statement::GeneralFor {
+                        var_names,
+                        expr_list,
+                        block,
+                    })
                 }
                 else {
-                    self.error_none("Unknown syntax of for loop")
+                    self.error("Unknown syntax of for-loop")
                 }
             }
             false => None,
@@ -469,7 +436,7 @@ impl Parser {
 
                 let body = match self.try_parse_function_body() {
                     Some(body) => body,
-                    None => self.error_type("Expected a function body"),
+                    None => self.error("Expected a function body"),
                 };
 
                 Some(Statement::FunctionDef {
@@ -491,7 +458,7 @@ impl Parser {
                 let name = self.expect_name();
                 let body = match self.try_parse_function_body() {
                     Some(body) => body,
-                    None => self.error_type("Expected a function body"),
+                    None => self.error("Expected a local function body"),
                 };
 
                 Some(Statement::LocalFunctionDef {
@@ -509,29 +476,30 @@ impl Parser {
     fn try_parse_local_variables_statement(&mut self) -> Option<Statement> {
         match self.eat(Token::Local) {
             true => {
-                let name = self.expect_name();
-                let attrib = self.try_parse_local_variable_attrib();
-
-                let mut variables = vec![(name, attrib)];
-                while self.eat(Token::Comma) {
+                let mut var_list = Vec::new();
+                
+                while var_list.is_empty() || self.eat(Token::Comma) {
                     let name = self.expect_name();
                     let attrib = self.try_parse_local_variable_attrib();
-                    variables.push((name, attrib));
+                    var_list.push(LocalVariable {
+                        name,
+                        attrib,
+                    });
                 }
 
-                let expressions = match self.eat(Token::Assign) {
+                let expr_list = match self.eat(Token::Assign) {
                     true => {
                         match self.try_parse_expression_list() {
-                            Some(expr_list) => Some(expr_list),
-                            None => self.error_none("Expected an expression list"),
+                            Some(expr_list) => expr_list,
+                            None => self.error("Expected an initial values expression list"),
                         }
                     }
-                    false => None,
+                    false => Vec::new(),
                 };
 
                 Some(Statement::LocalVariables {
-                    variables,
-                    expressions: expressions.unwrap_or(Vec::new()),
+                    var_list,
+                    expr_list,
                 })
             }
             false => None,
@@ -544,11 +512,12 @@ impl Parser {
                 let name = self.expect_name();
                 self.expect(Token::GreaterThan);
 
-                Some(match name.as_str() {
+                let attrib = match name.as_str() {
                     "const" => LocalVariableAttrib::Const,
                     "close" => LocalVariableAttrib::Close,
-                    _ => self.error_type("Expected 'const' or 'close' local variable attribute"),
-                })
+                    _ => self.error("Expected 'const' or 'close' local variable attribute"),
+                };
+                Some(attrib)
             }
             false => None,
         }
@@ -557,12 +526,9 @@ impl Parser {
     fn try_parse_return_statement(&mut self) -> Option<ReturnStatement> {
         match self.eat(Token::Return) {
             true => {
-                let expr_list = self.try_parse_expression_list();
+                let expr_list = self.try_parse_expression_list().unwrap_or_else(|| Vec::new());
                 self.eat(Token::SemiColon);
-
-                Some(ReturnStatement {
-                    expression_list: expr_list.unwrap_or_else(|| Vec::new()),
-                })
+                Some(ReturnStatement(expr_list))
             }
             false => None,
         }
@@ -628,7 +594,7 @@ impl Parser {
     );
 
     fn try_parse_expression_arithm_factor(&mut self) -> Option<Expression> {
-        let factor = if self.eat(Token::Nil) {
+        let factor_expr = if self.eat(Token::Nil) {
             Some(Expression::Nil)
         }
         else if self.eat(Token::True) {
@@ -650,168 +616,163 @@ impl Parser {
             Some(Expression::VarArg)
         }
         else if self.eat(Token::Function) {
-            match self.try_parse_function_body() {
-                Some(body_expr) => Some(Expression::FunctionDef(body_expr)),
-                None => self.error_none("Expected a function body"),
-            }
+            let body = match self.try_parse_function_body() {
+                Some(body) => body,
+                None => self.error("Expected a function body"),
+            };
+            Some(Expression::FunctionDef(body))
         }
-        else if let Some(token) = self.eat_any_of(&[Token::Not, Token::Len, Token::Sub, Token::BitNotXor]) {
-            match self.try_parse_expression_arithm_factor() {
-                Some(expr) => Some(Expression::UnaryOp {
-                    op: token,
-                    expr: Box::new(expr),
-                }),
-                None => self.error_none("Expected a factor"),
-            }
+        else if let Some(op) = self.eat_any_of(&[Token::Not, Token::Len, Token::Sub, Token::BitNotXor]) {
+            let expr = match self.try_parse_expression_arithm_factor() {
+                Some(expr) => expr,
+                None => self.error("Expected a factor expression"),
+            };
+            Some(Expression::UnaryOp {
+                op,
+                expr: Box::new(expr),
+            })
         }
         else if self.look_for(Token::LeftBrace) {
-            match self.try_parse_table_constructor() {
-                Some(table_constructor) => Some(table_constructor),
-                None => self.error_none("Expected a table constructor"),
-            }
+            let table_constructor = match self.try_parse_table_constructor() {
+                Some(table_constructor) => table_constructor,
+                None => self.error("Expected a table constructor"),
+            };
+            Some(Expression::Table(table_constructor))
         }
         else {
-            self.try_parse_suffixed_expression()
+            self.try_parse_suffixed().map(|suffixed| Expression::Suffixed(Box::new(suffixed)))
         };
 
-        match factor {
-            Some(factor) => {
+        match factor_expr {
+            Some(factor_expr) => {
                 match self.eat(Token::Pow) {
                     true => {
-                        match self.try_parse_expression() {
-                            Some(pow) => Some(Expression::BinaryOp {
-                                op: Token::Pow,
-                                left_expr: Box::new(factor),
-                                right_expr: Box::new(pow),
-                            }),
-                            None => self.error_none("Expected an expression")
-                        }
+                        let pow_expr = match self.try_parse_expression() {
+                            Some(expr) => expr,
+                            None => self.error("Expected a pow expression")
+                        };
+                        Some(Expression::BinaryOp {
+                            op: Token::Pow,
+                            left_expr: Box::new(factor_expr),
+                            right_expr: Box::new(pow_expr),
+                        })
                     }
-                    false => Some(factor),
+                    false => Some(factor_expr),
                 }
             }
             None => None,
         }
     }
 
-    fn try_parse_suffixed_expression(&mut self) -> Option<Expression> {
+    fn try_parse_suffixed(&mut self) -> Option<Suffixed> {
         let main_expr = if let Some(name) = self.eat_name() {
             Some(Expression::Named(name))
         }
         else if self.eat(Token::LeftParen) {
-            match self.try_parse_expression() {
-                Some(expr) => {
-                    self.expect(Token::RightParen);
-                    Some(expr)
-                }
-                None => self.error_none("Expected an expression"),
-            }
+            let expr = match self.try_parse_expression() {
+                Some(expr) => expr,
+                None => self.error("Expected an expression"),
+            };
+            self.expect(Token::RightParen);
+            Some(expr)
         }
         else {
             None
         };
 
         match main_expr {
-            Some(main_expr) => {
-                match self.try_parse_suffixes() {
-                    Some(suffixes) => {
-                        Some(Expression::Suffixed {
-                            expr: Box::new(main_expr),
-                            suffixes,
-                        })
-                    },
-                    None => Some(main_expr),
-                }
-            }
+            Some(main_expr) => Some(Suffixed {
+                expr: main_expr,
+                suffixes: self.parse_suffixes(),
+            }),
             None => None,
         }
     }
 
-    fn try_parse_suffixes(&mut self) -> Option<Vec<Suffix>> {
+    fn parse_suffixes(&mut self) -> Vec<Suffix> {
         let mut suffixes = Vec::new();
         loop {
             if self.eat(Token::Dot) {
                 let name = self.expect_name();
-                suffixes.push(Suffix::Index(Box::new(Expression::Named(name))));
+                suffixes.push(Suffix::Index(Expression::Named(name)));
             }
             else if self.eat(Token::LeftBracket) {
-                match self.try_parse_expression() {
-                    Some(expr) => {
-                        self.expect(Token::RightBracket);
-                        suffixes.push(Suffix::Index(Box::new(expr)));
-                    },
-                    None => self.error("Expected a suffixed expression"),
-                }
+                let index_expr = match self.try_parse_expression() {
+                    Some(expr) => expr,
+                    None => self.error("Expected an index expression to index a table"),
+                };
+                self.expect(Token::RightBracket);
+                suffixes.push(Suffix::Index(index_expr));
             }
             else if let Some(args) = self.try_parse_call_arguments() {
                 suffixes.push(Suffix::CallFree(args))
             }
             else if self.eat(Token::Colon) {
                 let name = self.expect_name();
-                match self.try_parse_call_arguments() {
-                    Some(args) => suffixes.push(Suffix::CallMethod {
-                        name,
-                        args,
-                    }),
-                    None => self.error("Expected arguments or ()"),
-                }
+                let args = match self.try_parse_call_arguments() {
+                    Some(args) => args,
+                    None => self.error("Expected a list of call arguments or ()"),
+                };
+                suffixes.push(Suffix::CallMethod {
+                    name,
+                    args,
+                })
             }
             else {
                 break;
             }
         }
 
-        match suffixes.is_empty() {
-            true => None,
-            false => Some(suffixes),
-        }
+        suffixes
     }
 
     fn try_parse_call_arguments(&mut self) -> Option<CallArgs> {
         if self.eat(Token::LeftParen) {
-            let expr_list = self.try_parse_expression_list();
+            let expr_list = match self.try_parse_expression_list() {
+                Some(expr_list) => expr_list,
+                None => Vec::new(),
+            };
             self.expect(Token::RightParen);
-
-            match expr_list {
-                Some(expr_list) => Some(CallArgs::ExpressionList(expr_list)),
-                None => Some(CallArgs::ExpressionList(Vec::new())),
-            }
+            Some(CallArgs::ExpressionList(expr_list))
         }
         else if self.look_for(Token::LeftBrace) {
-            match self.try_parse_table_constructor() {
-                Some(table_constructor) => Some(CallArgs::Table(Box::new(table_constructor))),
-                None => self.error_none("Expected a table constructor"),
-            }
+            let table_constructor = match self.try_parse_table_constructor() {
+                Some(table_constructor) => table_constructor,
+                None => self.error("Expected a table constructor"),
+            };
+            Some(CallArgs::Table(table_constructor))
         }
         else if let Some(string) = self.eat_string() {
-            Some(CallArgs::String(string.clone()))
+            Some(CallArgs::String(string))
         }
         else {
             None
         }
     }
 
-    fn try_parse_table_constructor(&mut self) -> Option<Expression> {
+    fn try_parse_table_constructor(&mut self) -> Option<Table> {
         match self.eat(Token::LeftBrace) {
             true => {
                 let mut fields = Vec::new();
                 loop {
                     if self.eat(Token::LeftBracket) {
-                        match self.try_parse_expression() {
-                            Some(key_expr) => {
-                                self.expect(Token::RightBracket);
-                                self.expect(Token::Assign);
+                        let key_expr = match self.try_parse_expression() {
+                            Some(expr) => expr,
+                            None => self.error("Expected an expression of key"),
+                        };
 
-                                match self.try_parse_expression() {
-                                    Some(value_expr) => fields.push(TableField {
-                                        key: Some(key_expr),
-                                        value: value_expr,
-                                    }),
-                                    None => self.error("Expected an expression"),
-                                }
-                            },
-                            None => self.error("Expected an expression"),
-                        }
+                        self.expect(Token::RightBracket);
+                        self.expect(Token::Assign);
+
+                        let value_expr = match self.try_parse_expression() {
+                            Some(expr) => expr,
+                            None => self.error("Expected an expression of value"),
+                        };
+
+                        fields.push(TableField {
+                            key: Some(key_expr),
+                            value: value_expr,
+                        })
                     }
                     else if self.eat(Token::RightBrace) {
                         break;
@@ -829,13 +790,15 @@ impl Parser {
                             let name = self.expect_name();
                             self.expect(Token::Assign);
 
-                            match self.try_parse_expression() {
-                                Some(value_expr) => fields.push(TableField {
-                                    key: Some(Expression::Named(name)),
-                                    value: value_expr,
-                                }),
-                                None => self.error("Expected an expression"),
-                            }
+                            let value_expr = match self.try_parse_expression() {
+                                Some(expr) => expr,
+                                None => self.error("Expected an expression of value"),
+                            };
+
+                            fields.push(TableField {
+                                key: Some(Expression::Named(name)),
+                                value: value_expr,
+                            })
                         }
                         else if let Some(expr) = self.try_parse_expression() {
                             fields.push(TableField {
@@ -844,16 +807,16 @@ impl Parser {
                             });
                         }
                         else {
-                            self.error("Unexpected token");
+                            self.error("Unexpected token")
                         }
                     }
 
                     if !fields.is_empty() && self.eat_any_of(&[Token::Comma, Token::SemiColon]).is_none() && !self.look_for(Token::RightBrace) {
-                        self.error("Expected a separator ',' or ';'");
+                        self.error("Expected a separator ',' or ';'")
                     }
                 }
 
-                Some(Expression::Table(fields))
+                Some(Table(fields))
             }
             false => None,
         }
@@ -862,23 +825,19 @@ impl Parser {
     fn try_parse_function_body(&mut self) -> Option<FunctionBody> {
         match self.eat(Token::LeftParen) {
             true => {
-                let param_list = self.try_parse_name_list(true);
+                let (param_list, param_list_has_vararg) = match self.try_parse_name_list(true) {
+                    Some(param_list) => param_list,
+                    None => (Vec::new(), false),
+                };
                 self.expect(Token::RightParen);
 
-                let block = self.parse_block(Some(&[Token::End])).0;
+                let (block, _) = self.parse_block(Some(&[Token::End]));
 
-                match param_list {
-                    Some(param_list) => Some(FunctionBody {
-                        param_list: param_list.0,
-                        param_list_has_vararg: param_list.1,
-                        block,
-                    }),
-                    None => Some(FunctionBody {
-                        param_list: Vec::new(),
-                        param_list_has_vararg: false,
-                        block,
-                    })
-                }
+                Some(FunctionBody {
+                    param_list,
+                    param_list_has_vararg,
+                    block,
+                })
             }
             false => None,
         }
@@ -891,7 +850,7 @@ impl Parser {
 
             while self.eat(Token::Comma) {
                 if let Some(name) = self.eat_name() {
-                    names.push(name.clone());
+                    names.push(name);
                 }
                 else if self.eat(Token::Dots3) {
                     match can_has_vararg {
@@ -904,7 +863,7 @@ impl Parser {
                 }
                 else {
                     match can_has_vararg {
-                        true => self.error("Expected a name or a vararg"),
+                        true => self.error("Expected a name or vararg"),
                         false => self.error("Expected a name"),
                     }
                 }
@@ -924,8 +883,8 @@ impl Parser {
     fn expect(&mut self, expected_token: Token) {
         match self.stream.look_token(0) {
             Some(token) if token == &expected_token => self.stream.next(),
-            Some(token) => self.error_bool(&format!("Expected '{}' instead '{}'", expected_token, token)),
-            _ => self.error_bool("Unexpected end of token stream"),
+            Some(token) => self.error(&format!("Expected '{}' instead '{}'", expected_token, token)),
+            _ => self.error("Unexpected end of token stream"),
         };
     }
 
@@ -936,14 +895,8 @@ impl Parser {
                 self.stream.next();
                 name
             },
-            Some(_) => {
-                self.error("Expected an identifier");
-                unreachable!();
-            },
-            _ => {
-                self.error("Unexpected end of token stream");
-                unreachable!();
-            },
+            Some(_) => self.error("Expected an identifier"),
+            _ => self.error("Unexpected end of token stream"),
         }
     }
 
@@ -1018,7 +971,7 @@ impl Parser {
     }
 
     #[track_caller]
-    fn error_none<T>(&self, desc: &str) -> Option<T> {
+    fn error<T>(&self, desc: &str) -> T {
         fn build_pointer_str(loc: &Location, len: usize) -> String {
             match loc.column() > 0 {
                 true => " ".repeat(loc.column() - 1) + &"^".repeat(len),
@@ -1064,22 +1017,5 @@ impl Parser {
                 panic!(format!("Parser error: {}\n", desc))
             }
         }
-    }
-
-    #[track_caller]
-    fn error_bool(&self, desc: &str) -> bool {
-        self.error_none::<()>(desc);
-        false
-    }
-    
-    #[track_caller]
-    fn error(&self, desc: &str) {
-        self.error_bool(desc);
-    }
-    
-    #[track_caller]
-    fn error_type<T>(&self, desc: &str) -> T {
-        self.error_bool(desc);
-        unreachable!()
     }
 }

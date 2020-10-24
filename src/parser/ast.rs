@@ -15,20 +15,20 @@ pub struct Block {
 pub enum Statement {
     Empty,
     Assignment {
-        var_list: Vec<Expression>,
+        var_list: Vec<Suffixed>,
         expr_list: Vec<Expression>,
     },
-    FunctionCall(Expression),
+    FunctionCall(Suffixed),
     Label(String),
     Break,
     Goto(String),
     Block(Block),
     While {
-        cond: Expression,
+        condition: Expression,
         block: Block,
     },
     RepeatUntil {
-        cond: Expression,
+        condition: Expression,
         block: Block,
     },
     IfElse {
@@ -37,14 +37,14 @@ pub enum Statement {
         else_part: Option<Block>,
     },
     For {
-        varname: String,
+        var_name: String,
         initial_value: Expression,
         limit_value: Expression,
         step_value: Option<Expression>,
         block: Block,
     },
     GeneralFor {
-        varnames: Vec<String>,
+        var_names: Vec<String>,
         expr_list: Vec<Expression>,
         block: Block,
     },
@@ -59,15 +59,13 @@ pub enum Statement {
         body: FunctionBody,
     },
     LocalVariables {
-        variables: Vec<(String, Option<LocalVariableAttrib>)>,
-        expressions: Vec<Expression>,
+        var_list: Vec<LocalVariable>,
+        expr_list: Vec<Expression>,
     },
 }
 
 #[derive(Debug)]
-pub struct ReturnStatement {
-    pub expression_list: Vec<Expression>,
-}
+pub struct ReturnStatement(pub Vec<Expression>);
 
 #[derive(Debug)]
 pub enum Expression {
@@ -79,11 +77,8 @@ pub enum Expression {
     VarArg,
     FunctionDef(FunctionBody),
     Named(String),
-    Suffixed {
-        expr: Box<Expression>,
-        suffixes: Vec<Suffix>,
-    },
-    Table(Vec<TableField>),
+    Suffixed(Box<Suffixed>),
+    Table(Table),
     BinaryOp {
         op: Token,
         left_expr: Box<Expression>,
@@ -103,8 +98,14 @@ pub struct FunctionBody {
 }
 
 #[derive(Debug)]
+pub struct Suffixed {
+    pub expr: Expression,
+    pub suffixes: Vec<Suffix>,
+}
+
+#[derive(Debug)]
 pub enum Suffix {
-    Index(Box<Expression>),
+    Index(Expression),
     CallFree(CallArgs),
     CallMethod {
         name: String,
@@ -115,9 +116,12 @@ pub enum Suffix {
 #[derive(Debug)]
 pub enum CallArgs {
     ExpressionList(Vec<Expression>),
-    Table(Box<Expression>),
+    Table(Table),
     String(String),
 }
+
+#[derive(Debug)]
+pub struct Table(pub Vec<TableField>);
 
 #[derive(Debug)]
 pub struct TableField {
@@ -127,8 +131,14 @@ pub struct TableField {
 
 #[derive(Debug)]
 pub struct ConditionalBlock {
-    pub cond_expr: Expression,
+    pub condition: Expression,
     pub block: Block,
+}
+
+#[derive(Debug)]
+pub struct LocalVariable {
+    pub name: String,
+    pub attrib: Option<LocalVariableAttrib>,
 }
 
 #[derive(Debug)]
