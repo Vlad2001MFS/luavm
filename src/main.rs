@@ -15,6 +15,9 @@ use std::{
     },
     fs::File,
     io::Write,
+    time::{
+        SystemTime, Duration,
+    },
 };
 
 fn run_tests(test_dir_path: &str) {
@@ -27,6 +30,9 @@ fn run_tests(test_dir_path: &str) {
     }
 
     std::fs::create_dir(&result_dir).unwrap();
+
+    let mut lexer_total_time = Duration::new(0, 0);
+    let mut parser_total_time = Duration::new(0, 0);
 
     let mut skip_test = false;
     for entry in std::fs::read_dir(test_dir_path).unwrap() {
@@ -46,14 +52,20 @@ fn run_tests(test_dir_path: &str) {
                 let test_source_bytes = std::fs::read(&path).expect(&format!("Failed to load test '{}'", path.to_string_lossy()));
                 let test_source = String::from_utf8_lossy(&test_source_bytes).to_string();
 
+                let lexer_start_time = SystemTime::now();
                 let tokens = Lexer::parse(&test_source, test_file_name);
+                let lexer_elapsed_time = lexer_start_time.elapsed().unwrap();
+                lexer_total_time += lexer_elapsed_time;
 
                 let mut tokens_file = File::create(result_dir.join(test_file_stem.to_owned() + ".tokens.txt")).unwrap();
                 for token in tokens.iter() {
                     writeln!(tokens_file, "{:?}", token.token()).unwrap();
                 }
 
+                let parser_start_time = SystemTime::now();
                 let chunk = Parser::parse(tokens);
+                let parser_elapsed_time = parser_start_time.elapsed().unwrap();
+                parser_total_time += parser_elapsed_time;
 
                 let ast_string: String = format!("{:#?}", chunk).lines().map(|line| {
                     let mut spaces_count = 0;
@@ -69,10 +81,14 @@ fn run_tests(test_dir_path: &str) {
                 let mut ast_file = File::create(result_dir.join(test_file_stem.to_owned() + ".ast.txt")).unwrap();
                 writeln!(ast_file, "{}", ast_string).unwrap();
 
-                println!("### TEST: {} --- OK ###", test_file_name);
+                println!("### TEST: {} --- OK ### LexerTime: {} ms || ParserTime: {} ms", test_file_name, lexer_elapsed_time.as_millis(), parser_elapsed_time.as_millis());
             }
         }
     }
+
+    println!("###### Total time ######");
+    println!("Lexer: {} s || {} ms", lexer_total_time.as_secs_f64(), lexer_total_time.as_millis());
+    println!("Parser: {} s || {} ms", parser_total_time.as_secs_f64(), parser_total_time.as_millis())
 }
 
 fn main() {

@@ -212,7 +212,7 @@ impl Lexer {
         }
     }
 
-    fn try_process_block(&mut self) -> Option<String> {
+    fn try_process_block(&mut self, gather_content: bool) -> Option<String> {
         let saved_position_stream = self.stream.position();
 
         if self.eat_char('[') {
@@ -229,8 +229,22 @@ impl Lexer {
             let closing_brackets = format!("]{}]", "=".repeat(depth));
             let mut content = String::new();
 
-            while !self.eat_string(&closing_brackets) {
-                content.push(self.stream.extract());
+            if gather_content {
+                let mut count = 0;
+                while !self.match_string(count, &closing_brackets) {
+                    count += 1;
+                }
+                content.reserve(count*4);
+
+                self.eat_char('\n');
+                while !self.eat_string(&closing_brackets) {
+                    content.push(self.stream.extract());
+                }
+            }
+            else {
+                while !self.eat_string(&closing_brackets) {
+                    self.stream.next();
+                }
             }
 
             return Some(content);
@@ -240,7 +254,7 @@ impl Lexer {
 
     fn try_process_comment(&mut self) -> bool {
         if self.eat_string("--") {
-            if self.try_process_block().is_none() {
+            if self.try_process_block(false).is_none() {
                 while !self.eat_char('\n') {
                     self.stream.next();
                 }
@@ -253,6 +267,12 @@ impl Lexer {
     fn try_process_short_string_literal(&mut self) -> bool {
         if let Some(str_open_symbol) = self.eat_char_any_of(&['\'', '"']) {
             let mut string = String::new();
+
+            let mut count = 0;
+            while !self.match_char(count, str_open_symbol) {
+                count += 1;
+            }
+            string.reserve(count*4);
 
             while !self.eat_char(str_open_symbol) {
                 if self.eat_char('\\') {
@@ -272,7 +292,7 @@ impl Lexer {
                         'u' => {
                             self.expect_char('{');
 
-                            let mut number = String::new();
+                            let mut number = String::with_capacity(128);
                             while let Some(ch) = self.stream.extract_if(|ch| ch.is_digit(16)) {
                                 number.push(ch);
                             }
@@ -290,7 +310,7 @@ impl Lexer {
                             }
                         }
                         'x' => {
-                            let mut number = String::new();
+                            let mut number = String::with_capacity(128);
 
                             for _ in 0..2 {
                                 match self.stream.extract_if(|ch| ch.is_digit(16)) {
@@ -344,11 +364,8 @@ impl Lexer {
     }
 
     fn try_process_long_string_literal(&mut self) -> bool {
-        match self.try_process_block() {
-            Some(mut string) => {
-                if string.starts_with("\n") {
-                    string.remove(0);
-                }
+        match self.try_process_block(true) {
+            Some(string) => {
                 self.add_token(Token::String(string));
                 true
             }
@@ -358,7 +375,8 @@ impl Lexer {
 
     fn try_process_identifier(&mut self) -> bool {
         if let Some(ch) = self.stream.extract_if(|ch| ch.is_alphabetic() || ch == '_') {
-            let mut name = ch.to_string();
+            let mut name = String::with_capacity(256);
+            name.push(ch);
 
             while let Some(ch) = self.stream.extract_if(|ch| ch.is_alphanumeric() || ch == '_') {
                 name.push(ch);
@@ -402,14 +420,14 @@ impl Lexer {
 
     fn try_process_number(&mut self) -> bool {
         if self.eat_string("0x") || self.eat_string("0X") {
-            let mut number = String::new();
+            let mut number = String::with_capacity(128);
             let mut is_float = false;
 
             while let Some(ch) = self.stream.extract_if(|ch| ch.is_digit(16)) {
                 number.push(ch);
             }
 
-            if !self.match_string("..") && self.eat_char('.') {
+            if !self.match_string(0, "..") && self.eat_char('.') {
                 is_float = true;
                 number.push('.');
             }
@@ -464,15 +482,15 @@ impl Lexer {
             return true;
         }
         else if self.stream.look_if(0, |ch| ch.is_digit(10)).is_some()
-             || self.stream.look_if(0, |ch| ch == '.').is_some() && self.stream.look_if(1, |ch| ch.is_digit(10)).is_some() {
-            let mut number = String::new();
+             || self.match_char(0, '.') && self.stream.look_if(1, |ch| ch.is_digit(10)).is_some() {
+            let mut number = String::with_capacity(128);
             let mut is_float = false;
 
             while let Some(ch) = self.stream.extract_if(|ch| ch.is_digit(10)) {
                 number.push(ch);
             }
 
-            if !self.match_string("..") && self.eat_char('.') {
+            if !self.match_string(0, "..") && self.eat_char('.') {
                 is_float = true;
                 number.push('.');
             }
@@ -684,9 +702,19 @@ impl Lexer {
         true
     }
 
-    fn match_string(&mut self, expected_string: &str) -> bool {
+    fn match_char(&mut self, offset: usize, expected_ch: char) -> bool {
+        match self.stream.look(offset) {
+            Some(ch) if ch != expected_ch => return false,
+            Some(_) => (),
+            None => return false,
+        };
+
+        true
+    }
+
+    fn match_string(&mut self, offset: usize, expected_string: &str) -> bool {
         for (i, expected_ch) in expected_string.chars().enumerate() {
-            match self.stream.look(i) {
+            match self.stream.look(offset + i) {
                 Some(ch) if ch != expected_ch => return false,
                 Some(_) => (),
                 None => return false,
