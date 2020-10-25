@@ -54,12 +54,10 @@ use crate::{
     },
     parser::{
         TokenStream,
-        ast::{
-            Chunk, Block,
-            Statement, ReturnStatement,
-            Expression, FunctionBody, Suffixed, Suffix, CallArgs, Table, TableField,
-            ConditionalBlock, LocalVariable, LocalVariableAttrib,
-        },
+        Chunk, Block,
+        Statement, ReturnStatement,
+        Expression, FunctionBody, Suffixed, Suffix, CallArgs, Table, TableField, BinaryOp, UnaryOp,
+        ConditionalBlock, LocalVariable, LocalVariableAttrib,
     },
 };
 
@@ -70,14 +68,40 @@ macro_rules! try_parse_expression {
                 Some(left_expr) => {
                     match self.eat_any_of(&$expr_tokens) {
                         Some(token) => {
-                            match self.$low_prior_expr() {
-                                Some(right_expr) => Some(Expression::BinaryOp {
-                                    op: token,
-                                    left_expr: Box::new(left_expr),
-                                    right_expr: Box::new(right_expr),
-                                }),
+                            let right_expr = match self.$low_prior_expr() {
+                                Some(right_expr) => right_expr,
                                 None => self.error("Expected an expression"),
-                            }
+                            };
+
+                            let op = match token {
+                                Token::Or => BinaryOp::Or,
+                                Token::And => BinaryOp::And,
+                                Token::LessThan => BinaryOp::LessThan,
+                                Token::GreaterThan => BinaryOp::GreaterThan,
+                                Token::LessEqual => BinaryOp::LessEqual,
+                                Token::GreaterEqual => BinaryOp::GreaterEqual,
+                                Token::NotEqual => BinaryOp::NotEqual,
+                                Token::Equal => BinaryOp::Equal,
+                                Token::BitOr => BinaryOp::BitOr,
+                                Token::BitNotXor => BinaryOp::BitNotXor,
+                                Token::BitAnd => BinaryOp::BitAnd,
+                                Token::ShiftLeft => BinaryOp::ShiftLeft,
+                                Token::ShiftRight => BinaryOp::ShiftRight,
+                                Token::Dots2 => BinaryOp::Dots2,
+                                Token::Add => BinaryOp::Add,
+                                Token::Sub => BinaryOp::Sub,
+                                Token::Mul => BinaryOp::Mul,
+                                Token::Div => BinaryOp::Div,
+                                Token::IDiv => BinaryOp::IDiv,
+                                Token::Mod => BinaryOp::Mod,
+                                _ => unreachable!(),
+                            };
+
+                            Some(Expression::BinaryOp {
+                                op,
+                                left_expr: Box::new(left_expr),
+                                right_expr: Box::new(right_expr),
+                            })
                         },
                         _ => Some(left_expr),
                     }
@@ -267,10 +291,10 @@ impl Parser {
                     _ => self.error("Expected a block"),
                 };
 
-                Some(Statement::While {
+                Some(Statement::While(ConditionalBlock {
                     condition,
                     block,
-                })
+                }))
             }
             false => None,
         }
@@ -285,10 +309,10 @@ impl Parser {
                     None => self.error("Expected a conditional expression"),
                 };
 
-                Some(Statement::RepeatUntil {
+                Some(Statement::RepeatUntil(ConditionalBlock {
                     condition,
                     block,
-                })
+                }))
             }
             false => None,
         }
@@ -622,11 +646,20 @@ impl Parser {
             };
             Some(Expression::FunctionDef(body))
         }
-        else if let Some(op) = self.eat_any_of(&[Token::Not, Token::Len, Token::Sub, Token::BitNotXor]) {
+        else if let Some(token) = self.eat_any_of(&[Token::Not, Token::Len, Token::Sub, Token::BitNotXor]) {
             let expr = match self.try_parse_expression_arithm_factor() {
                 Some(expr) => expr,
                 None => self.error("Expected a factor expression"),
             };
+
+            let op = match token {
+                Token::Not => UnaryOp::Not,
+                Token::Len => UnaryOp::Len,
+                Token::Sub => UnaryOp::Sub,
+                Token::BitNotXor => UnaryOp::BitNotXor,
+                _ => unreachable!(),
+            };
+
             Some(Expression::UnaryOp {
                 op,
                 expr: Box::new(expr),
@@ -652,7 +685,7 @@ impl Parser {
                             None => self.error("Expected a pow expression")
                         };
                         Some(Expression::BinaryOp {
-                            op: Token::Pow,
+                            op: BinaryOp::Pow,
                             left_expr: Box::new(factor_expr),
                             right_expr: Box::new(pow_expr),
                         })

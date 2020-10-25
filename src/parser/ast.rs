@@ -1,5 +1,3 @@
-use crate::lexer::Token;
-
 #[derive(Debug)]
 pub struct Chunk {
     pub block: Block,
@@ -23,14 +21,8 @@ pub enum Statement {
     Break,
     Goto(String),
     Block(Block),
-    While {
-        condition: Expression,
-        block: Block,
-    },
-    RepeatUntil {
-        condition: Expression,
-        block: Block,
-    },
+    While(ConditionalBlock),
+    RepeatUntil(ConditionalBlock),
     IfElse {
         if_part: ConditionalBlock,
         elseif_parts: Vec<ConditionalBlock>,
@@ -80,12 +72,12 @@ pub enum Expression {
     Suffixed(Box<Suffixed>),
     Table(Table),
     BinaryOp {
-        op: Token,
+        op: BinaryOp,
         left_expr: Box<Expression>,
         right_expr: Box<Expression>,
     },
     UnaryOp {
-        op: Token,
+        op: UnaryOp,
         expr: Box<Expression>,
     },
 }
@@ -145,4 +137,27 @@ pub struct LocalVariable {
 pub enum LocalVariableAttrib {
     Const,
     Close,
+}
+
+#[derive(Debug)]
+pub enum BinaryOp {
+    Or,
+    And,
+    LessThan, GreaterThan, LessEqual, GreaterEqual, NotEqual, Equal,
+    BitOr,
+    BitNotXor,
+    BitAnd,
+    ShiftLeft, ShiftRight,
+    Dots2,
+    Add, Sub,
+    Mul, Div, IDiv, Mod,
+    Pow,
+}
+
+#[derive(Debug)]
+pub enum UnaryOp {
+    Not,
+    Len,
+    Sub,
+    BitNotXor,
 }
