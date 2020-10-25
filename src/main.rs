@@ -81,14 +81,23 @@ fn run_tests(test_dir_path: &str) {
                 let mut ast_file = File::create(result_dir.join(test_file_stem.to_owned() + ".ast.txt")).unwrap();
                 writeln!(ast_file, "{}", ast_string).unwrap();
 
-                println!("### TEST: {} --- OK ### LexerTime: {} ms || ParserTime: {} ms", test_file_name, lexer_elapsed_time.as_millis(), parser_elapsed_time.as_millis());
+                let total_time = lexer_elapsed_time + parser_elapsed_time;
+                let lexer_time_percents = (lexer_elapsed_time.as_secs_f32() / total_time.as_secs_f32())*100.0;
+                let parser_time_percents = 100.0 - lexer_time_percents;
+
+                println!("### TEST: {:<14} --- OK ### LexerTime: {:>4} ms ({:>5.2} %) || ParserTime: {:>4} ms ({:>5.2} %)",
+                    test_file_name, lexer_elapsed_time.as_millis(), lexer_time_percents, parser_elapsed_time.as_millis(), parser_time_percents);
             }
         }
     }
 
+    let total_time = lexer_total_time + parser_total_time;
+    let lexer_time_percents = (lexer_total_time.as_secs_f32() / total_time.as_secs_f32())*100.0;
+    let parser_time_percents = 100.0 - lexer_time_percents;
+
     println!("###### Total time ######");
-    println!("Lexer: {} s || {} ms", lexer_total_time.as_secs_f64(), lexer_total_time.as_millis());
-    println!("Parser: {} s || {} ms", parser_total_time.as_secs_f64(), parser_total_time.as_millis())
+    println!("Lexer : {:>7.4} s || {:>5} ms || {:>5.2} %", lexer_total_time.as_secs_f32(), lexer_total_time.as_millis(), lexer_time_percents);
+    println!("Parser: {:>7.4} s || {:>5} ms || {:>5.2} %", parser_total_time.as_secs_f32(), parser_total_time.as_millis(), parser_time_percents);
 }
 
 fn main() {
