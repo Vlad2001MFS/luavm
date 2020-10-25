@@ -4,18 +4,25 @@ use std::{
 };
 
 #[derive(Clone)]
+pub struct SourceInfo {
+    name: String,
+    lines: Vec<String>,
+}
+
+#[derive(Clone)]
 pub struct Location {
     line: usize,
     column: usize,
-    lines: Rc<Vec<String>>,
-    source_name: String,
+    source_info: Rc<SourceInfo>,
 }
 
 impl Location {
-    pub fn new(lines: Rc<Vec<String>>, source_name: String) -> Location {
+    pub fn new(lines: Vec<String>, source_name: String) -> Location {
         Location {
-            lines,
-            source_name,
+            source_info: Rc::new(SourceInfo {
+                name: source_name,
+                lines,
+            }),
             ..Location::default()
         }
     }
@@ -39,15 +46,15 @@ impl Location {
     }
 
     pub fn lines(&self) -> &[String] {
-        &self.lines
+        &self.source_info.lines
     }
 
     pub fn content(&self) -> &str {
-        &self.lines.get(self.line - 1).expect(&format!("Failed to get content of line {} of source {}", self.line, self.source_name))
+        &self.source_info.lines.get(self.line - 1).expect(&format!("Failed to get content of line {} of source {}", self.line(), self.source_name()))
     }
 
     pub fn source_name(&self) -> &str {
-        &self.source_name
+        &self.source_info.name
     }
 }
 
@@ -56,8 +63,10 @@ impl Default for Location {
         Location {
             line: 1,
             column: 0,
-            lines: Rc::new(Vec::new()),
-            source_name: String::new(),
+            source_info: Rc::new(SourceInfo {
+                name: String::new(),
+                lines: Vec::new(),
+            }),
         }
     }
 }
@@ -71,22 +80,18 @@ impl Display for Location {
 
 pub struct TextStream {
     data: Vec<char>,
-    lines: Vec<String>,
     next_idx: usize,
     location: Location,
 }
 
 impl TextStream {
     pub fn new(src: String, name: String) -> TextStream {
-        let lines: Vec<String> = src.lines().map(|a| a.to_owned()).collect();
         let mut stream = TextStream {
             data: src.chars().collect(),
-            lines: lines.clone(),
             next_idx: 0,
-            location: Location::new(Rc::new(lines), name),
+            location: Location::new(src.lines().map(|a| a.to_owned()).collect(), name),
         };
         stream.next();
-
         stream
     }
 
@@ -94,8 +99,11 @@ impl TextStream {
         self.data.get(self.next_idx + offset - 1).copied()
     }
 
-    pub fn look_if<P: FnOnce(char) -> bool>(&self, offset: usize, pred: P) -> Option<char> {
-        self.look(offset).filter(|ch| pred(*ch))
+    pub fn look_if_digit(&self, offset: usize, radix: u32) -> Option<char> {
+        match self.look(offset) {
+            Some(ch) if ch.is_digit(radix) => Some(ch),
+            _ => None,
+        }
     }
 
     pub fn extract(&mut self) -> char {
@@ -103,15 +111,34 @@ impl TextStream {
         self.next();
         ch
     }
-
-    pub fn extract_if<P: FnOnce(char) -> bool>(&mut self, pred: P) -> Option<char> {
-        let ch = self.last_char();
-        match pred(ch) {
-            true => {
+    
+    pub fn extract_if_digit(&mut self, radix: u32) -> Option<char> {
+        match self.look(0) {
+            Some(ch) if ch.is_digit(radix) => {
                 self.next();
                 Some(ch)
             },
-            false => None,
+            _ => None,
+        }
+    }
+    
+    pub fn extract_if_alphabetic(&mut self, allow_underscore: bool) -> Option<char> {
+        match self.look(0) {
+            Some(ch) if ch.is_alphabetic() || ch == '_' && allow_underscore => {
+                self.next();
+                Some(ch)
+            },
+            _ => None,
+        }
+    }
+    
+    pub fn extract_if_alphanumeric(&mut self, allow_underscore: bool) -> Option<char> {
+        match self.look(0) {
+            Some(ch) if ch.is_alphanumeric() || ch == '_' && allow_underscore => {
+                self.next();
+                Some(ch)
+            },
+            _ => None,
         }
     }
 
@@ -148,12 +175,12 @@ impl TextStream {
     }
 
     pub fn lines(&self) -> &[String] {
-        &self.lines
+        self.location.lines()
     }
 
     #[track_caller]
     pub fn last_char(&self) -> char {
-        self.look(0).expect(&format!("Unexpected end of stream of source '{}'", self.location.source_name))
+        self.look(0).expect(&format!("Unexpected end of stream of source '{}'", self.location.source_name()))
     }
 
     pub fn location(&self) -> &Location {

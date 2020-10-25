@@ -175,7 +175,7 @@ impl Lexer {
         };
         let mut lexer = Lexer {
             stream: TextStream::new(src, name.to_string()),
-            tokens: Vec::new(),
+            tokens: Vec::with_capacity(16384),
             begin_location: Location::default(),
         };
         lexer.process();
@@ -226,15 +226,11 @@ impl Lexer {
                 return None;
             }
 
-            let closing_brackets = format!("]{}]", "=".repeat(depth));
+            let closing_brackets = "]".to_string() + &"=".repeat(depth) + "]";
             let mut content = String::new();
 
             if gather_content {
-                let mut count = 0;
-                while !self.match_string(count, &closing_brackets) {
-                    count += 1;
-                }
-                content.reserve(count*4);
+                content.reserve(4096);
 
                 self.eat_char('\n');
                 while !self.eat_string(&closing_brackets) {
@@ -265,14 +261,8 @@ impl Lexer {
     }
 
     fn try_process_short_string_literal(&mut self) -> bool {
-        if let Some(str_open_symbol) = self.eat_char_any_of(&['\'', '"']) {
-            let mut string = String::new();
-
-            let mut count = 0;
-            while !self.match_char(count, str_open_symbol) {
-                count += 1;
-            }
-            string.reserve(count*4);
+        if let Some(str_open_symbol) = self.eat_any_char_of(&['\'', '"']) {
+            let mut string = String::with_capacity(1024);
 
             while !self.eat_char(str_open_symbol) {
                 if self.eat_char('\\') {
@@ -288,12 +278,19 @@ impl Lexer {
                         '\\' => string.push('\\'),
                         '\"' => string.push('\"'),
                         '\'' => string.push('\''),
-                        'z' => while let Some(_) = self.stream.extract_if(|ch| ch.is_ascii_whitespace()) {},
+                        'z' => {
+                            while let Some(ch) = self.stream.look(0) {
+                                match ch.is_ascii_whitespace() {
+                                    true => self.stream.next(),
+                                    false => break,
+                                };
+                            }
+                        },
                         'u' => {
                             self.expect_char('{');
 
                             let mut number = String::with_capacity(128);
-                            while let Some(ch) = self.stream.extract_if(|ch| ch.is_digit(16)) {
+                            while let Some(ch) = self.stream.extract_if_digit(16) {
                                 number.push(ch);
                             }
 
@@ -313,7 +310,7 @@ impl Lexer {
                             let mut number = String::with_capacity(128);
 
                             for _ in 0..2 {
-                                match self.stream.extract_if(|ch| ch.is_digit(16)) {
+                                match self.stream.extract_if_digit(16) {
                                     Some(ch) => number.push(ch),
                                     None => self.error("Invalid escaped byte in hexadecimal representation"),
                                 };
@@ -327,10 +324,11 @@ impl Lexer {
                             string.push(num as u8 as char);
                         }
                         ch if ch.is_digit(10) => {
-                            let mut number = ch.to_string();
+                            let mut number = String::with_capacity(128);
+                            number.push(ch);
 
                             for _ in 0..2 {
-                                match self.stream.extract_if(|ch| ch.is_digit(10)) {
+                                match self.stream.extract_if_digit(10) {
                                     Some(ch) => number.push(ch),
                                     None => break,
                                 }
@@ -349,11 +347,12 @@ impl Lexer {
                         _ => self.error("Unknown escaped sequence"),
                     };
                 }
-                else if let Some(ch) = self.stream.extract_if(|ch| !ch.is_ascii_control()) {
-                    string.push(ch);
-                }
                 else {
-                    self.error("Short string literal can not contain unescaped control symbols")
+                    let ch = self.stream.extract();
+                    match ch.is_ascii_control() {
+                        true => self.error("Short string literal can not contain unescaped control symbols"),
+                        false => string.push(ch),
+                    }
                 }
             }
             
@@ -374,11 +373,11 @@ impl Lexer {
     }
 
     fn try_process_identifier(&mut self) -> bool {
-        if let Some(ch) = self.stream.extract_if(|ch| ch.is_alphabetic() || ch == '_') {
-            let mut name = String::with_capacity(256);
+        if let Some(ch) = self.stream.extract_if_alphabetic(true) {
+            let mut name = String::with_capacity(128);
             name.push(ch);
 
-            while let Some(ch) = self.stream.extract_if(|ch| ch.is_alphanumeric() || ch == '_') {
+            while let Some(ch) = self.stream.extract_if_alphanumeric(true) {
                 name.push(ch);
             }
 
@@ -423,7 +422,7 @@ impl Lexer {
             let mut number = String::with_capacity(128);
             let mut is_float = false;
 
-            while let Some(ch) = self.stream.extract_if(|ch| ch.is_digit(16)) {
+            while let Some(ch) = self.stream.extract_if_digit(16) {
                 number.push(ch);
             }
 
@@ -433,25 +432,25 @@ impl Lexer {
             }
 
             let mut fractional_digits_count = 0;
-            while let Some(ch) = self.stream.extract_if(|ch| ch.is_digit(16)) {
+            while let Some(ch) = self.stream.extract_if_digit(16) {
                 if fractional_digits_count < 13 {
                     fractional_digits_count += 1;
                     number.push(ch);
                 }
             }
 
-            if let Some(_) = self.eat_char_any_of(&['p', 'P']) {
+            if let Some(_) = self.eat_any_char_of(&['p', 'P']) {
                 if !is_float {
                     is_float = true;
                     number.push('.');
                 }
                 number.push('p');
 
-                if let Some(ch) = self.eat_char_any_of(&['+', '-']) {
+                if let Some(ch) = self.eat_any_char_of(&['+', '-']) {
                     number.push(ch);
                 }
 
-                while let Some(ch) = self.stream.extract_if(|ch| ch.is_digit(10)) {
+                while let Some(ch) = self.stream.extract_if_digit(10) {
                     number.push(ch);
                 }
             }
@@ -481,12 +480,11 @@ impl Lexer {
 
             return true;
         }
-        else if self.stream.look_if(0, |ch| ch.is_digit(10)).is_some()
-             || self.match_char(0, '.') && self.stream.look_if(1, |ch| ch.is_digit(10)).is_some() {
+        else if self.stream.look_if_digit(0, 10).is_some() || self.match_char(0, '.') && self.stream.look_if_digit(1, 10).is_some() {
             let mut number = String::with_capacity(128);
             let mut is_float = false;
 
-            while let Some(ch) = self.stream.extract_if(|ch| ch.is_digit(10)) {
+            while let Some(ch) = self.stream.extract_if_digit(10) {
                 number.push(ch);
             }
 
@@ -496,21 +494,21 @@ impl Lexer {
             }
 
             let mut fractional_digits_count = 0;
-            while let Some(ch) = self.stream.extract_if(|ch| ch.is_digit(10)) {
+            while let Some(ch) = self.stream.extract_if_digit(10) {
                 if fractional_digits_count < 13 {
                     fractional_digits_count += 1;
                     number.push(ch);
                 }
             }
 
-            if let Some(_) = self.eat_char_any_of(&['e', 'E']) {
+            if let Some(_) = self.eat_any_char_of(&['e', 'E']) {
                 number.push('e');
 
-                if let Some(ch) = self.eat_char_any_of(&['+', '-']) {
+                if let Some(ch) = self.eat_any_char_of(&['+', '-']) {
                     number.push(ch);
                 }
 
-                while let Some(ch) = self.stream.extract_if(|ch| ch.is_digit(10)) {
+                while let Some(ch) = self.stream.extract_if_digit(10) {
                     number.push(ch);
                 }
             }
@@ -677,13 +675,19 @@ impl Lexer {
     }
 
     fn eat_char(&mut self, expected_char: char) -> bool {
-        self.stream.extract_if(|ch| ch == expected_char).is_some()
+        match self.stream.look(0) {
+            Some(ch) if ch == expected_char => {
+                self.stream.next();
+                true
+            },
+            _ => false
+        }
     }
 
-    fn eat_char_any_of(&mut self, expected_chars: &[char]) -> Option<char> {
-        for ch in expected_chars.iter().copied() {
-            if self.eat_char(ch) {
-                return Some(ch);
+    fn eat_any_char_of(&mut self, expected_chars: &[char]) -> Option<char> {
+        for ch in expected_chars.iter() {
+            if self.eat_char(*ch) {
+                return Some(*ch);
             }
         }
         None
@@ -704,20 +708,16 @@ impl Lexer {
 
     fn match_char(&mut self, offset: usize, expected_ch: char) -> bool {
         match self.stream.look(offset) {
-            Some(ch) if ch != expected_ch => return false,
-            Some(_) => (),
-            None => return false,
-        };
-
-        true
+            Some(ch) if ch == expected_ch => true,
+            _ => false,
+        }
     }
 
     fn match_string(&mut self, offset: usize, expected_string: &str) -> bool {
         for (i, expected_ch) in expected_string.chars().enumerate() {
             match self.stream.look(offset + i) {
-                Some(ch) if ch != expected_ch => return false,
-                Some(_) => (),
-                None => return false,
+                Some(ch) if ch == expected_ch => (),
+                _ => return false,
             };
         }
 
