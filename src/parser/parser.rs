@@ -105,7 +105,7 @@ impl Parser {
 
     fn parse_block(&mut self, ending_token: Option<&[Token]>) -> (Block, Option<Token>) {
         let mut block = Block {
-            statements: Vec::new(),
+            statements: Vec::with_capacity(1024),
             return_statement: None,
         };
 
