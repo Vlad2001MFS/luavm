@@ -680,7 +680,7 @@ impl Parser {
             Some(factor_expr) => {
                 match self.eat(Token::Pow) {
                     true => {
-                        let pow_expr = match self.try_parse_expression() {
+                        let pow_expr = match self.try_parse_expression_arithm_factor() {
                             Some(expr) => expr,
                             None => self.error("Expected a pow expression")
                         };
